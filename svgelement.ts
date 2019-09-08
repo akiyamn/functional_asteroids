@@ -1,4 +1,5 @@
-/** 
+
+/**
  * a little wrapper for creating SVG elements and getting/setting their attributes
  * and observing their events.
  * inspired by d3.js (http://d3js.org)
