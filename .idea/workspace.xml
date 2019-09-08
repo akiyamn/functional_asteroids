@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="64330506-4329-45ba-88ec-d1c635025646" name="Default Changelist" comment="" />
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ProjectId" id="1QRh8KCbFNEwDzoqEVBNvv6HQkA" />
+  <component name="PropertiesComponent">
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
+    <property name="ts.external.directory.path" value="$APPLICATION_HOME_DIR$/plugins/JavaScriptLanguage/jsLanguageServicesImpl/external" />
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="RunManager" selected="JavaScript Debug.asteroids.html">
+    <configuration name="asteroids.html" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:63342/2019Assignment1/asteroids.html" useBuiltInWebServerPort="true">
+      <method v="2" />
+    </configuration>
+    <configuration name="checklist.html" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:63342/2019Assignment1/checklist.html" useBuiltInWebServerPort="true">
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="JavaScript Debug.asteroids.html" />
+        <item itemvalue="JavaScript Debug.checklist.html" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="64330506-4329-45ba-88ec-d1c635025646" name="Default Changelist" comment="" />
+      <created>1567739155263</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1567739155263</updated>
+      <workItem from="1567739156621" duration="3795000" />
+      <workItem from="1567756110143" duration="8042000" />
+      <workItem from="1567860228774" duration="6065000" />
+      <workItem from="1567929994660" duration="7563000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+    <option name="exactExcludedFiles">
+      <list>
+        <option value="$PROJECT_DIR$/asteroids.js.map" />
+        <option value="$PROJECT_DIR$/asteroids.js" />
+        <option value="$PROJECT_DIR$/svgelement.js.map" />
+        <option value="$PROJECT_DIR$/svgelement.js" />
+        <option value="$PROJECT_DIR$/observable.js.map" />
+        <option value="$PROJECT_DIR$/observable.js" />
+      </list>
+    </option>
+  </component>
+</project>
