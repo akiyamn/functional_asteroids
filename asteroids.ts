@@ -49,11 +49,15 @@ function asteroids() {
         return {x: reorient(t.x), y: reorient(t.y), rot: t.rot}
     }
 
+    // const collisionBetween = (elem1:Elem) => (elem2:Elem) => {
+    //
+    // }
+
     // IMPURE/IO FUNCTIONS
 
     function transformElement(elem: Elem, f: TransFunc): void {
         const current = currentPosition(elem);
-        const result = floorTransform(f(current));
+        const result = keepInBounds(floorTransform(f(current)), SCREEN_MARGIN);
         elem.attr("transform", `translate(${result.x} ${result.y}) rotate(${result.rot})`)
     }
 
@@ -65,7 +69,7 @@ function asteroids() {
                     .map(event => event.key)
                     .filter(keyFilter);
                 const velocity = Observable.interval(1000 / FPS).takeUntil(cancel);
-                velocity.subscribe(_ => transformElement(g, t => keepInBounds(f(t), SCREEN_MARGIN)));
+                velocity.subscribe(_ => transformElement(g, f));
             });
     }
 
@@ -108,7 +112,7 @@ function asteroids() {
             .attr("r", "3")
             .attr("fill", "#fff")
             .attr("transform", "translate(0 0) rotate(0)");
-        const deleteBullet = Observable.interval(5000);
+        const deleteBullet = Observable.interval(bulletTimeout);
         deleteBullet.subscribe(_ => bullet.attr("visibility", "hidden"));
         const startingPos = currentPosition(elem);
         transformElement(bullet, _ => startingPos);
@@ -127,9 +131,46 @@ function asteroids() {
     const shoot = controls
         .filter(k => k == " ")
         .subscribe(_ => {
-            shootFrom(g, 5000, bulletMovement)
+            shootFrom(g, 1000, bulletMovement)
         });
 
+    // ASTEROIDS
+
+    function spawnAsteroid(size:number, initPos:Transform, velocityFunc:TransFunc, color?:string){
+        color = color === undefined? "#000" : color;
+        const asteroid = new Elem(svg, 'circle')
+            .attr("r", size.toString())
+            .attr("fill", color)
+            .attr("style", "stroke:white;stroke-width:5")
+            .attr("transform", "translate(0 0) rotate(0)");
+        transformElement(asteroid, _ => initPos);
+        const controller = Observable.interval(1000/FPS);
+            controller.subscribe(_ => {
+                transformElement(asteroid, velocityFunc)
+            })
+    }
+
+    let asteroidCount = 0;
+
+    const asteroidSpawner = Observable.interval(2000)
+        .map(_=>({
+            size: Math.random()*100,
+            xPos: (Math.random()*10000) % SCREEN_MARGIN,
+            xVelocity: 5 - Math.random()*10,
+            yVelocity: 5 - Math.random()*10
+        }))
+        .filter(rand => rand.size<=40)
+        .subscribe(rand => {
+            if (asteroidCount < 5) {
+                asteroidCount++;
+                spawnAsteroid(
+                    5 + rand.size,
+                    {x: rand.xPos, y: SCREEN_MARGIN * -(rand.xPos % 2), rot: 0},
+                    t => ({x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0}),
+                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/25)}, 100%, 50%)`
+                );
+            }
+        });
 
 }
 // the following simply runs your asteroids function on window load.  Make sure to leave it in place.
