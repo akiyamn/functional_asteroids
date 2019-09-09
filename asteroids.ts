@@ -56,7 +56,7 @@ function asteroids() {
     // IMPURE/IO FUNCTIONS
 
     function transformElement(elem: Elem, f: TransFunc): void {
-        const current = currentPosition(elem);
+        const current = position(elem);
         const result = keepInBounds(floorTransform(f(current)), SCREEN_MARGIN);
         elem.attr("transform", `translate(${result.x} ${result.y}) rotate(${result.rot})`)
     }
@@ -73,7 +73,7 @@ function asteroids() {
             });
     }
 
-    function currentPosition(elem: Elem) {
+    function position(elem: Elem) {
         const parts = elem.attr("transform")
             .match(/translate\((-*[0-9]+\.*[0-9]*)\s(-*[0-9]+\.*[0-9]*)\)\srotate\((-*[0-9]+\.*[0-9]*)\)/)!
             .splice(1)!
@@ -102,7 +102,7 @@ function asteroids() {
         right = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot + 5)}),
         left = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot - 5)});
 
-    controlElement(g, controls, k => k == "w", forward);
+    controlElement(ship, controls, k => k == "w", forward);
     controlElement(g, controls, k => k == "a", left);
     controlElement(g, controls, k => k == "s", backward);
     controlElement(g, controls, k => k == "d", right);
@@ -114,7 +114,7 @@ function asteroids() {
             .attr("transform", "translate(0 0) rotate(0)");
         const deleteBullet = Observable.interval(bulletTimeout);
         deleteBullet.subscribe(_ => bullet.attr("visibility", "hidden"));
-        const startingPos = currentPosition(elem);
+        const startingPos = position(elem);
         transformElement(bullet, _ => startingPos);
         const velocity = Observable.interval(1000 / FPS)
             .takeUntil(deleteBullet)
@@ -136,23 +136,32 @@ function asteroids() {
 
     // ASTEROIDS
 
-    function spawnAsteroid(size:number, initPos:Transform, velocityFunc:TransFunc, color?:string){
+    function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void{
         color = color === undefined? "#000" : color;
         const asteroid = new Elem(svg, 'circle')
-            .attr("r", size.toString())
+            .attr("r", radius.toString())
             .attr("fill", color)
             .attr("style", "stroke:white;stroke-width:5")
             .attr("transform", "translate(0 0) rotate(0)");
         transformElement(asteroid, _ => initPos);
         const controller = Observable.interval(1000/FPS);
             controller.subscribe(_ => {
-                transformElement(asteroid, velocityFunc)
-            })
+                transformElement(asteroid, velocityFunc);
+                console.log(collideWithShip(asteroid, radius))
+            });
     }
 
     let asteroidCount = 0;
 
-    const asteroidSpawner = Observable.interval(2000)
+    const distance = (u:Transform, v:Transform) => Math.sqrt(Math.abs((v.x - u.x)**2 + (v.y - u.y)**2));
+    const elemType = (elem:Elem) => elem.elem.tagName;
+
+    const collision = (elem1:Elem, radius1:number) => (elem2:Elem, radius2:number) =>
+        distance(position(elem1), position(elem2)) < radius1 + radius2;
+
+    const collideWithShip = collision(g, 10);
+
+    const asteroidSpawner = Observable.interval(1000)
         .map(_=>({
             size: Math.random()*100,
             xPos: (Math.random()*10000) % SCREEN_MARGIN,
@@ -171,6 +180,7 @@ function asteroids() {
                 );
             }
         });
+
 
 }
 // the following simply runs your asteroids function on window load.  Make sure to leave it in place.

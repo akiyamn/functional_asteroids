@@ -6,7 +6,6 @@
       <change beforePath="$PROJECT_DIR$/asteroids.js" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/asteroids.js.map" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.js.map" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/asteroids.ts" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/svgelement.js.map" beforeDir="false" afterPath="$PROJECT_DIR$/svgelement.js.map" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -66,7 +65,9 @@
       <workItem from="1567756110143" duration="8042000" />
       <workItem from="1567860228774" duration="6065000" />
       <workItem from="1567929994660" duration="7563000" />
-      <workItem from="1567937573382" duration="6998000" />
+      <workItem from="1567937573382" duration="8027000" />
+      <workItem from="1567950873623" duration="408000" />
+      <workItem from="1568013045103" duration="7928000" />
     </task>
     <servers />
   </component>
@@ -88,7 +89,9 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="COLUMN_ORDER" />
+            </State>
           </value>
         </entry>
       </map>
