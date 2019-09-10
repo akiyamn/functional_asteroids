@@ -49,11 +49,14 @@ function asteroids() {
         return {x: reorient(t.x), y: reorient(t.y), rot: t.rot}
     }
 
+    // const collisionBetween = (elem1:Elem) => (elem2:Elem) => {
+    //
+    // }
 
     // IMPURE/IO FUNCTIONS
 
     function transformElement(elem: Elem, f: TransFunc): void {
-        const current = position(elem);
+        const current = currentPosition(elem);
         const result = keepInBounds(floorTransform(f(current)), SCREEN_MARGIN);
         elem.attr("transform", `translate(${result.x} ${result.y}) rotate(${result.rot})`)
     }
@@ -70,7 +73,7 @@ function asteroids() {
             });
     }
 
-    function position(elem: Elem) {
+    function currentPosition(elem: Elem) {
         const parts = elem.attr("transform")
             .match(/translate\((-*[0-9]+\.*[0-9]*)\s(-*[0-9]+\.*[0-9]*)\)\srotate\((-*[0-9]+\.*[0-9]*)\)/)!
             .splice(1)!
@@ -82,7 +85,6 @@ function asteroids() {
 
     const controls = Observable
         .fromEvent<KeyboardEvent>(document, "keypress")
-        .filter(_=>!gameOver)
         .filter(event => !event.repeat)
         .map(event => event.key);
 
@@ -105,45 +107,20 @@ function asteroids() {
     controlElement(g, controls, k => k == "s", backward);
     controlElement(g, controls, k => k == "d", right);
 
-
-    const bullets:Elem[] = [];
-
     function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc) {
         const bullet = new Elem(svg, 'circle')
-            .attr("r", bulletSize.toString())
+            .attr("r", "3")
             .attr("fill", "#fff")
             .attr("transform", "translate(0 0) rotate(0)");
-        let liveBullet = true;
-        bullets.push(bullet);
-        const bulletDeath = Observable.interval(bulletTimeout);
-        bulletDeath.subscribe(_ => {
-            if (liveBullet){
-                deleteBullet(bullet);
-            }
-            liveBullet = false;
-        });
-        const startingPos = position(elem);
+        const deleteBullet = Observable.interval(bulletTimeout);
+        deleteBullet.subscribe(_ => bullet.attr("visibility", "hidden"));
+        const startingPos = currentPosition(elem);
         transformElement(bullet, _ => startingPos);
         const velocity = Observable.interval(1000 / FPS)
-            .takeUntil(bulletDeath)
+            .takeUntil(deleteBullet)
             .subscribe(_ => transformElement(bullet, velocityFunc))
     }
 
-
-    let gameOver = false;
-
-    function killPlayer(ship:Elem) : void {
-        ship.attr("visibility", "hidden")
-        gameOver = true
-        new Elem(svg, "text")
-            .attr("x", "50%")
-            .attr("y", "50%")
-            .attr("text-anchor", "middle")
-            .attr("fill", "#fff")
-            .attr("style", "font: bold 40px sans-serif;")
-            .elem.innerHTML = "GAME OVER"
-
-    }
 
     const bulletMovement = (t: Transform) => ({
         x: ((t.x + (Math.sin(rad(t.rot)) * 8))),
@@ -154,12 +131,10 @@ function asteroids() {
     const shoot = controls
         .filter(k => k == " ")
         .subscribe(_ => {
-            shootFrom(g, 90 * 1000/FPS, bulletMovement)
+            shootFrom(g, 1000, bulletMovement)
         });
 
     // ASTEROIDS
-
-    const asteroidDivergence = 0.8
 
     function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void{
         color = color === undefined? "#000" : color;
@@ -169,74 +144,63 @@ function asteroids() {
             .attr("style", "stroke:white;stroke-width:5")
             .attr("transform", "translate(0 0) rotate(0)");
         transformElement(asteroid, _ => initPos);
-        let deleted = false;
         const controller = Observable.interval(1000/FPS);
-        controller.subscribe(_ => {
-            if (!deleted) {
-                transformElement(asteroid, velocityFunc);
-
-                if (collidedWithShip(asteroid, radius)){
-                    killPlayer(ship)
-                }
-
-                const bullet = gotShot(asteroid, radius);
-                if (bullet) {
-                    deleted = true;
-                    deleteBullet(bullet);
-                    asteroidCount--;
-                    if (radius >= 16) {
-                        spawnAsteroid(radius/2, position(asteroid),
-                                t=>velocityFunc({x: t.x-asteroidDivergence, y: t.y+asteroidDivergence, rot: 0}), color);
-                        spawnAsteroid(radius/2, position(asteroid),
-                                t=>velocityFunc({x: t.x+asteroidDivergence, y: t.y-asteroidDivergence, rot: 0}), color)
-                    }
-                    asteroid.elem.remove();
-                }
-            }
-        });
+            controller.subscribe(_ => {
+                transformElement(asteroid, velocityFunc)
+                // const d = distance(currentPosition(asteroid), currentPosition(g));
+                // if (d < radius) {
+                //     console.log(d)
+                // }
+            });
     }
 
     let asteroidCount = 0;
-    const maxAsteroids = 2;
-    const bulletSize = 3;
-    const asteroidSpawnInterval = 1000;
-
-    function deleteBullet(bullet:Elem) : void{
-        const index = bullets.indexOf(bullet);
-        console.log(index)
-        if (index >= 0) {
-            bullets.splice(bullets.indexOf(bullet), 1);
-        }
-        bullet.attr("visibility", "hidden")
-    }
 
     const distance = (u:Transform, v:Transform) => Math.sqrt(Math.abs((v.x - u.x)**2 + (v.y - u.y)**2));
     const elemType = (elem:Elem) => elem.elem.tagName;
 
-    const collision = (elem1:Elem, radius1:number) => (elem2:Elem, radius2:number) =>
-        distance(position(elem1), position(elem2)) <= radius1 + radius2;
+    function listPolygonPoints(poly:Elem, group?:Elem) : Transform[] | undefined{
+        if (group === undefined) {
+            group = poly
+        }
+        const shape = elemType(poly);
+        const polyPos = currentPosition(transGroup);
+        if (shape == "polygon") {
+            return poly.attr("points").split(" ")
+                .map(str => str.split(","))
+                .map(pair => ({x: polyPos.x + parseFloat(pair[0]), y: polyPos.y + parseFloat(pair[1]), rot: 0}))
+        }
+    }
 
-    const collidedWithShip = collision(g, 10);
+    function collision(elem1: {shape:Elem; group:Elem|undefined}, elem2: {shape:Elem, group:Elem|undefined}){
+        if (elem1.group === undefined) elem1.group = elem1.shape;
+        if (elem2.group === undefined) elem2.group = elem2.shape;
+        [elem1, elem2]
+            .map(e => {
+                if (elemType(e.shape) == "polygon"){
+                    listPolygonPoints(e.shape, e.group)
+                } else {
+                    [currentPosition(e.group!)]
+                }
+            })
+    }
 
-    const gotShot = (object:Elem, radius:number): Elem | undefined => bullets
-        .filter(bullet => collision(object, radius)(bullet, bulletSize))[0];
-
-    Observable.interval(asteroidSpawnInterval)
+    const asteroidSpawner = Observable.interval(1000)
         .map(_=>({
             size: Math.random()*100,
             xPos: (Math.random()*10000) % SCREEN_MARGIN,
-            xVelocity: 4 - Math.random()*8,
-            yVelocity: 4 - Math.random()*8
+            xVelocity: 5 - Math.random()*10,
+            yVelocity: 5 - Math.random()*10
         }))
-        .filter(rand => rand.size > 8 && rand.size < 45)
+        .filter(rand => rand.size<=40)
         .subscribe(rand => {
-            if (asteroidCount < maxAsteroids) {
+            if (asteroidCount < 5) {
                 asteroidCount++;
                 spawnAsteroid(
-                    rand.size,
+                    5 + rand.size,
                     {x: rand.xPos, y: SCREEN_MARGIN * -(rand.xPos % 2), rot: 0},
                     t => ({x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0}),
-                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/16)}, 100%, 50%)`
+                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/25)}, 100%, 50%)`
                 );
             }
         });
@@ -249,6 +213,6 @@ if (typeof window != 'undefined')
     asteroids();
   };
 
- 
 
- 
+
+

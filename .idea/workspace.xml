@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="64330506-4329-45ba-88ec-d1c635025646" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/classes.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/asteroids.js" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/asteroids.js.map" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.js.map" afterDir="false" />
@@ -12,6 +13,13 @@
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="TypeScript File" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -67,7 +75,8 @@
       <workItem from="1567929994660" duration="7563000" />
       <workItem from="1567937573382" duration="8027000" />
       <workItem from="1567950873623" duration="408000" />
-      <workItem from="1568013045103" duration="7928000" />
+      <workItem from="1568013045103" duration="19529000" />
+      <workItem from="1568080099647" duration="8256000" />
     </task>
     <servers />
   </component>
@@ -81,6 +90,8 @@
         <option value="$PROJECT_DIR$/svgelement.js" />
         <option value="$PROJECT_DIR$/observable.js.map" />
         <option value="$PROJECT_DIR$/observable.js" />
+        <option value="$PROJECT_DIR$/classes.js" />
+        <option value="$PROJECT_DIR$/classes.js.map" />
       </list>
     </option>
   </component>
