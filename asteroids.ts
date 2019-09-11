@@ -4,12 +4,36 @@
 
 function asteroids() {
 
+    // == README ==
+
+    /*
+    BONUS FEATURES ADDED:
+    - Thrust movement
+    - Colored asteroids that represent the asteroid's speed
+    - Asteroids split into smaller ones when destroyed
+     */
+
+    /* EXTRA BONUS FEATURE (aiming for HD 90+):
+
+     */
+
+    /* DISCLAIMERS:
+    - Yes, I know 'let' is bad practise
+    - Any function that I haven't described as impure is pure
+    - Any function that has side-effects is impure
+    - Any function that reads from global constant is impure, but I feel that this isn't as bad
+    as this is mostly to avoid having "magic numbers" or "magic strings"
+    - The torus borders aren't perfect
+    - Weird behaviour happens after the player dies (doesn't affect game play)
+     */
+
+
     // == GAME SETTINGS ==
     const
         FPS = 60,
         SCREEN_MARGIN = 650;
 
-    // Game mechanic constants
+    // Game mechanic constants (to avoid "magic numbers")
     const shipSpeed : number = 5, // Player's movement as pixels per frame (ppf)
         bulletColor : string = "#fff",
         bulletSpeed : number = 8, // Bullet movement ppf
@@ -86,6 +110,7 @@ function asteroids() {
     // Movement Display Functions
 
     // Applies a transformation function (TransFunc) to a svg element (the basis of movement)
+    // Impure side-effect: moves an element on the screen (IO)
     function transformElement(elem: Elem, f: TransFunc) : void {
         const current = position(elem); // The position the element is currently in
         const result = keepInBounds(floorTransform(f(current)), SCREEN_MARGIN); // Keep the element within the bounds of the screen and floor it
@@ -93,6 +118,7 @@ function asteroids() {
     }
 
     // Return the current position of any svg element (assuming it has been defined) as a Transform
+    // Impure: Takes information from the screen, outside of the function body
     function position(elem: Elem) {
         const parts = elem.attr("transform")
             // Apply an ugly regex to the transform attribute to extract the floating point values
@@ -113,6 +139,8 @@ function asteroids() {
 
     // Allow a given element to be controlled using a key stroke, animated using a given TransFunc
     // A keyFilter is used in case you wanted more than one key to be bound to an action, or for it to change over time. (More flexible)
+    // Impure: Takes data from user input observable (IO)
+    // Side-effect: moves an element on the screen (IO)
     function controlElement(elem: Elem, keyObs: Observable<string>, keyFilter: (_: string) => boolean, f: TransFunc): void {
         keyObs
             .filter(keyFilter)
@@ -150,6 +178,8 @@ function asteroids() {
     // == BULLETS/SHOOTING ==
 
     // Produce a bullet coming out of a given element (for reusability) given a timeout and velocity function
+    // Impure: Draws information outside of the function body, being positions of existing elements
+    // Side-effect: Draws on screen (IO)
     function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc) : void {
         const bullet = new Elem(svg, 'circle') // Draw bullet
             .attr("r", bulletSize.toString())
@@ -189,6 +219,7 @@ function asteroids() {
         });
 
     // Delete a bullet safely and stop asteroids from checking for it
+    // Impure side-effects: Draws onto the screen AND modifies an external array of bullets
     function deleteBullet(bullet:Elem) : void {
         const index = bullets.indexOf(bullet);
         if (index >= 0) bullets.splice(bullets.indexOf(bullet), 1); // Only delete it if it hasn't been already
@@ -196,6 +227,7 @@ function asteroids() {
     }
 
     // Kill the player's ship and enter a gameOver state
+    // Impure side-effects: Modifies global, mutable gameOver state and draws on the screen
     function killPlayer(ship:Elem) : void {
         ship.attr("visibility", "hidden"); // Hide the ship
         gameOver = true;
@@ -211,6 +243,7 @@ function asteroids() {
     // == ASTEROIDS ==
 
     // Spawn a new asteroid of size radius, starting at initPos moving using a TransFunc. Can set a color optionally
+    // Impure: Reads from global bullet list, magic number globals and draws to the screen
     function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void {
         color = color === undefined? defaultAsteroidColor : color; // Set to default color if not defined
         const asteroid = new Elem(svg, 'circle') // Draw asteroid
