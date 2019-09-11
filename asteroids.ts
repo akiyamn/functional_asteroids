@@ -203,7 +203,7 @@ function asteroids() {
 
     function deleteBullet(bullet:Elem) : void{
         const index = bullets.indexOf(bullet);
-        console.log(index)
+        // console.log(index)
         if (index >= 0) {
             bullets.splice(bullets.indexOf(bullet), 1);
         }
@@ -224,7 +224,7 @@ function asteroids() {
     Observable.interval(asteroidSpawnInterval)
         .map(_=>({
             size: Math.random()*100,
-            xPos: (Math.random()*10000) % SCREEN_MARGIN,
+            yPos: (Math.random()*10000) % SCREEN_MARGIN,
             xVelocity: 4 - Math.random()*8,
             yVelocity: 4 - Math.random()*8
         }))
@@ -232,9 +232,11 @@ function asteroids() {
         .subscribe(rand => {
             if (asteroidCount < maxAsteroids) {
                 asteroidCount++;
+                const aa = {x: SCREEN_MARGIN, y: rand.yPos,  rot: 0}
                 spawnAsteroid(
                     rand.size,
-                    {x: rand.xPos, y: SCREEN_MARGIN * -(rand.xPos % 2), rot: 0},
+                    // {x: rand.xPos, y: SCREEN_MARGIN * -(rand.xPos % 2), rot: 0},
+                    aa,
                     t => ({x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0}),
                     `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/16)}, 100%, 50%)`
                 );
