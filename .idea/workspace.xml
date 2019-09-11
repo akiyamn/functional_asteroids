@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="64330506-4329-45ba-88ec-d1c635025646" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/dictionaries/yui.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/asteroids.js" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/asteroids.js.map" beforeDir="false" afterPath="$PROJECT_DIR$/asteroids.js.map" afterDir="false" />
@@ -76,7 +77,7 @@
       <workItem from="1567950873623" duration="408000" />
       <workItem from="1568013045103" duration="19529000" />
       <workItem from="1568080099647" duration="8365000" />
-      <workItem from="1568193680336" duration="1652000" />
+      <workItem from="1568193680336" duration="8465000" />
     </task>
     <servers />
   </component>

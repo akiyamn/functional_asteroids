@@ -4,60 +4,115 @@
 
 function asteroids() {
 
-    // Inside this function you will use the classes and functions
-    // defined in svgelement.ts and observable.ts
-    // to add visuals to the svg element in asteroids.html, animate them, and make them interactive.
-    // Study and complete the Observable tasks in the week 4 tutorial worksheet first to get ideas.
-
-    // You will be marked on your functional programming style
-    // as well as the functionality that you implement.
-    // Document your code!
-    // Explain which ideas you have used ideas from the lectures to
-    // create reusable, generic functions.
-
-    // GAME SETTINGS
+    // == GAME SETTINGS ==
     const
         FPS = 60,
         SCREEN_MARGIN = 650;
 
-    //TYPES
+    // Game mechanic constants
+    const shipSpeed : number = 5, // Player's movement as pixels per frame (ppf)
+        bulletColor : string = "#fff",
+        bulletSpeed : number = 8, // Bullet movement ppf
+        bulletLifeFrames : number = 90, // Frames that a bullet lasts for before disintegrating
+        asteroidDivergence : number = 0.8, // Factor that an asteroid's children diverge from the original path by
+        defaultAsteroidColor : string = "#000",
+        minAsteroidRadius : number = 8,
+        maxAsteroidRadius : number = 45,
+        maxAsteroidSpeed : number = 4, // Asteroid's maximum speed in ppf (scalar: in either direction)
+        biggestAsteroidConsidered : number = 100, // Biggest asteroid "considered" to be generated (Maybe be rejected for randomness, see spawnAsteroid func
+        maxAsteroids : number = 2,
+        bulletSize : number = 3, // Radius of bullets shot
+        asteroidSpawnInterval : number = 1000, // Every n milliseconds that an asteroid attempts to spawn.
+        shipHitboxRadius : number = 10; // Radius of the ship's circular hitbox from its centre
+
+    // Basic helpers
+    const rad = (deg: number) : number => deg * (Math.PI / 180); // Classic trig
+
+    // Non-constant global variables (eww...)
+    let gameOver : boolean = false; // Is the game over?
+    let asteroidCount : number = 0; // The amount of asteroids naturally spawned (not from splitting)
+
+    // Collision detection lists of elements
+    const bullets : Elem[] = []; // Shared list of all bullet elements
+
+    // == TYPES ==
+
+    /*
+    * Representation of a transformation that can be done on an svg element via the "transform" attribute.
+    * Acts like a 2D vector or point, but considering rotation as well as position.
+    * Useful for defining velocity functions for elements
+    * */
     interface Transform {
         x: number;
         y: number;
         rot: number;
     }
 
+    /* The heart of my functional programming based game.
+    A function of this type describes how an element's position and rotation changes over time.
+    Acts as a parametric equation describing the velocity and rotation of elements.
+    Can be chained together to create more complex transformation functions.
+     */
     type TransFunc = (t: Transform) => Transform
 
-    // BASIC ELEMENTS
+
+    // == BASIC SVG ELEMENTS ==
+
     const svg = document.getElementById("canvas")!;
 
-    let g = new Elem(svg, 'g')
+    const g = new Elem(svg, 'g')
         .attr("transform", "translate(300 300) rotate(0)");
 
-    let ship = new Elem(svg, 'polygon', g.elem)
+    const ship = new Elem(svg, 'polygon', g.elem)
         .attr("points", "-15,20 15,20 0,-20")
         .attr("style", "fill:black;stroke:white;stroke-width:5");
 
-    // PURE FUNCTIONS
 
-    const rad = (deg: number) => deg * (Math.PI / 180);
-    const floorTransform = (t: Transform) => ({x: Math.floor(t.x), y: Math.floor(t.y), rot: Math.floor(t.rot)});
+    // == ELEMENT TRANSFORMATION FUNCTIONS (MOVEMENT) ==
 
+    // Pure Movement Functions
+
+    // Turns a Transform into a floor'd version of itself. i.e. all values have Math.floor() applied to it
+    const floorTransform = (t: Transform) : Transform => ({x: Math.floor(t.x), y: Math.floor(t.y), rot: Math.floor(t.rot)});
+
+    // Turns a Transform into a version of itself which is bounded by a given square plane. (In this case, the size of the window)
+    // Applies a torus topology to any Transform
     function keepInBounds(t: Transform, bound: number): Transform {
-        const reorient = (n: number) => n < 0 ? (n % bound) + bound : n % bound;
-        return {x: reorient(t.x), y: reorient(t.y), rot: t.rot}
+        const reorient = (n: number) => n < 0 ? (n % bound) + bound : n % bound; // Func that keeps a given n within a given bound via mod
+        return {x: reorient(t.x), y: reorient(t.y), rot: t.rot} // Applied to each property of a Transform
     }
 
 
-    // IMPURE/IO FUNCTIONS
+    // Movement Display Functions
 
-    function transformElement(elem: Elem, f: TransFunc): void {
-        const current = position(elem);
-        const result = keepInBounds(floorTransform(f(current)), SCREEN_MARGIN);
-        elem.attr("transform", `translate(${result.x} ${result.y}) rotate(${result.rot})`)
+    // Applies a transformation function (TransFunc) to a svg element (the basis of movement)
+    function transformElement(elem: Elem, f: TransFunc) : void {
+        const current = position(elem); // The position the element is currently in
+        const result = keepInBounds(floorTransform(f(current)), SCREEN_MARGIN); // Keep the element within the bounds of the screen and floor it
+        elem.attr("transform", `translate(${result.x} ${result.y}) rotate(${result.rot})`) // Apply each value to the svg element via Elem.attr
     }
 
+    // Return the current position of any svg element (assuming it has been defined) as a Transform
+    function position(elem: Elem) {
+        const parts = elem.attr("transform")
+            // Apply an ugly regex to the transform attribute to extract the floating point values
+            .match(/translate\((-*[0-9]+\.*[0-9]*)\s(-*[0-9]+\.*[0-9]*)\)\srotate\((-*[0-9]+\.*[0-9]*)\)/)!
+            .splice(1)! // We don't want the whole string
+            .map(n => parseInt(n)); // To ints
+        return {x: parts[0], y: parts[1], rot: parts[2]} // Construct a Transform object
+    }
+
+    // == SHIP CONTROLS ==
+
+    // OBSERVABLE: providing key presses
+    const controls = Observable
+        .fromEvent<KeyboardEvent>(document, "keypress")
+        .filter(_=>!gameOver) // Only provide if the game isn't over
+        .filter(event => !event.repeat) // Remove repeating key presses
+        .map(event => event.key); // Only provide the key value itself
+
+    // Allow a given element to be controlled using a key stroke, animated using a given TransFunc
+    // A keyFilter is used in case you wanted more than one key to be bound to an action, or for it to change over time. (More flexible)
     function controlElement(elem: Elem, keyObs: Observable<string>, keyFilter: (_: string) => boolean, f: TransFunc): void {
         keyObs
             .filter(keyFilter)
@@ -70,175 +125,176 @@ function asteroids() {
             });
     }
 
-    function position(elem: Elem) {
-        const parts = elem.attr("transform")
-            .match(/translate\((-*[0-9]+\.*[0-9]*)\s(-*[0-9]+\.*[0-9]*)\)\srotate\((-*[0-9]+\.*[0-9]*)\)/)!
-            .splice(1)!
-            .map(n => parseInt(n));
-        return {x: parts[0], y: parts[1], rot: parts[2]}
-    }
-
-    // SHIP MOVEMENT
-
-    const controls = Observable
-        .fromEvent<KeyboardEvent>(document, "keypress")
-        .filter(_=>!gameOver)
-        .filter(event => !event.repeat)
-        .map(event => event.key);
-
+    // Pure transform functions describing ship and bullet movement
     const
-        forward = (t: Transform) => ({
-            x: ((t.x + (Math.sin(rad(t.rot)) * 5))),
-            y: (t.y - (Math.cos(rad(t.rot)) * 5)),
+        forward = (t: Transform) => ({ // Thrust movement forward
+            x: ((t.x + (Math.sin(rad(t.rot)) * shipSpeed))),
+            y: (t.y - (Math.cos(rad(t.rot)) * shipSpeed)),
             rot: t.rot
         }),
-        backward = (t: Transform) => ({
-            x: ((t.x - (Math.sin(rad(t.rot)) * 5))),
-            y: (t.y + (Math.cos(rad(t.rot)) * 5)),
+        backward = (t: Transform) => ({ // Thrust movement forward
+            x: ((t.x - (Math.sin(rad(t.rot)) * shipSpeed))),
+            y: (t.y + (Math.cos(rad(t.rot)) * shipSpeed)),
             rot: t.rot
         }),
-        right = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot + 5)}),
-        left = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot - 5)});
+        // Rotate left or right
+        right = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot + shipSpeed)}),
+        left = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot - shipSpeed)});
 
-    controlElement(ship, controls, k => k == "w", forward);
+    // Definition of controls
+    controlElement(g, controls, k => k == "w", forward);
     controlElement(g, controls, k => k == "a", left);
     controlElement(g, controls, k => k == "s", backward);
     controlElement(g, controls, k => k == "d", right);
 
+    // == BULLETS/SHOOTING ==
 
-    const bullets:Elem[] = [];
-
-    function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc) {
-        const bullet = new Elem(svg, 'circle')
+    // Produce a bullet coming out of a given element (for reusability) given a timeout and velocity function
+    function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc) : void {
+        const bullet = new Elem(svg, 'circle') // Draw bullet
             .attr("r", bulletSize.toString())
-            .attr("fill", "#fff")
+            .attr("fill", bulletColor)
             .attr("transform", "translate(0 0) rotate(0)");
+        // Add it to the list of "alive" bullets
         let liveBullet = true;
         bullets.push(bullet);
+        // Observable describing its death
         const bulletDeath = Observable.interval(bulletTimeout);
         bulletDeath.subscribe(_ => {
-            if (liveBullet){
-                deleteBullet(bullet);
-            }
-            liveBullet = false;
+            if (liveBullet) deleteBullet(bullet); // Kill the bullet only if it was alive (no zombie bullets)
+            liveBullet = false; // It is now dead, can't be killed again
         });
+        // Move it to the starting position in-front of what shot it out
         const startingPos = position(elem);
         transformElement(bullet, _ => startingPos);
-        const velocity = Observable.interval(1000 / FPS)
-            .takeUntil(bulletDeath)
-            .subscribe(_ => transformElement(bullet, velocityFunc))
+
+        // Observable describing how it moves every frame (via a TransFunc)
+        Observable.interval(1000 / FPS)
+            .takeUntil(bulletDeath) // Stop moving once it "dies"
+            .subscribe(_ => transformElement(bullet, velocityFunc)) // Move
     }
 
+    // Pure transform function describing bullet velocity
+    const bulletMovement = (t: Transform) : Transform => ({
+        x: ((t.x + (Math.sin(rad(t.rot)) * bulletSpeed))),
+        y: (t.y - (Math.cos(rad(t.rot)) * bulletSpeed)),
+        rot: t.rot
+    });
 
-    let gameOver = false;
+    // OBSERVABLE: for player shooting controls
+    controls
+        .filter(k => k == " ")
+        .subscribe(_ => {
+            shootFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement)
+        });
 
+    // Delete a bullet safely and stop asteroids from checking for it
+    function deleteBullet(bullet:Elem) : void {
+        const index = bullets.indexOf(bullet);
+        if (index >= 0) bullets.splice(bullets.indexOf(bullet), 1); // Only delete it if it hasn't been already
+        bullet.attr("visibility", "hidden") // Hide it
+    }
+
+    // Kill the player's ship and enter a gameOver state
     function killPlayer(ship:Elem) : void {
-        ship.attr("visibility", "hidden")
-        gameOver = true
-        new Elem(svg, "text")
+        ship.attr("visibility", "hidden"); // Hide the ship
+        gameOver = true;
+        new Elem(svg, "text") // Draw game over screen
             .attr("x", "50%")
             .attr("y", "50%")
             .attr("text-anchor", "middle")
             .attr("fill", "#fff")
             .attr("style", "font: bold 40px sans-serif;")
             .elem.innerHTML = "GAME OVER"
-
     }
 
-    const bulletMovement = (t: Transform) => ({
-        x: ((t.x + (Math.sin(rad(t.rot)) * 8))),
-        y: (t.y - (Math.cos(rad(t.rot)) * 8)),
-        rot: t.rot
-    });
+    // == ASTEROIDS ==
 
-    const shoot = controls
-        .filter(k => k == " ")
-        .subscribe(_ => {
-            shootFrom(g, 90 * 1000/FPS, bulletMovement)
-        });
-
-    // ASTEROIDS
-
-    const asteroidDivergence = 0.8
-
-    function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void{
-        color = color === undefined? "#000" : color;
-        const asteroid = new Elem(svg, 'circle')
+    // Spawn a new asteroid of size radius, starting at initPos moving using a TransFunc. Can set a color optionally
+    function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void {
+        color = color === undefined? defaultAsteroidColor : color; // Set to default color if not defined
+        const asteroid = new Elem(svg, 'circle') // Draw asteroid
             .attr("r", radius.toString())
             .attr("fill", color)
             .attr("style", "stroke:white;stroke-width:5")
             .attr("transform", "translate(0 0) rotate(0)");
-        transformElement(asteroid, _ => initPos);
+        transformElement(asteroid, _ => initPos); // Move asteroid to the starting position
         let deleted = false;
+        // Observer that controls the movement and collision behaviour of each asteroid every frame
         const controller = Observable.interval(1000/FPS);
         controller.subscribe(_ => {
-            if (!deleted) {
+            if (!deleted) { // ONLY perform any behaviour if the asteroid has not been destroyed
+                // Move the element according to the velocity function
                 transformElement(asteroid, velocityFunc);
-
-                if (collidedWithShip(asteroid, radius)){
-                    killPlayer(ship)
-                }
-
+                // Kill the player if it collides with it
+                if (collidedWithShip(asteroid, radius)) killPlayer(ship);
+                // Check if it has been shot by any currently alive bullet
                 const bullet = gotShot(asteroid, radius);
-                if (bullet) {
+                if (bullet) { // If it has,
                     deleted = true;
-                    deleteBullet(bullet);
+                    deleteBullet(bullet); // Delete the bullet that shot it
                     asteroidCount--;
-                    if (radius >= 16) {
+                    // Spawn two new, smaller asteroids
+                    color = color === undefined? defaultAsteroidColor : color; // Color is the same as the parent if it was defined
+                    if (radius >= minAsteroidRadius * 2) { // Only multiply if it is big enough to have children larger than the minimum asteroid size
+                        // Spawn both asteroids of half radius.
+                        // Provide a velocity function the same as the parent but with a slight tweak; each axis diverges slightly
                         spawnAsteroid(radius/2, position(asteroid),
-                                t=>velocityFunc({x: t.x-asteroidDivergence, y: t.y+asteroidDivergence, rot: 0}), color);
+                            t=>velocityFunc({x: t.x-asteroidDivergence, y: t.y+asteroidDivergence, rot: 0}), color);
                         spawnAsteroid(radius/2, position(asteroid),
-                                t=>velocityFunc({x: t.x+asteroidDivergence, y: t.y-asteroidDivergence, rot: 0}), color)
+                            t=>velocityFunc({x: t.x+asteroidDivergence, y: t.y-asteroidDivergence, rot: 0}), color)
                     }
+                    // Remove the asteroid element (reduces lag in theory)
                     asteroid.elem.remove();
                 }
             }
         });
     }
 
-    let asteroidCount = 0;
-    const maxAsteroids = 2;
-    const bulletSize = 3;
-    const asteroidSpawnInterval = 1000;
+    // Calculate the scalar difference between two points (as Transforms) via Pythagoras
+    const distance = (u:Transform, v:Transform) : number => Math.sqrt(Math.abs((v.x - u.x)**2 + (v.y - u.y)**2));
 
-    function deleteBullet(bullet:Elem) : void{
-        const index = bullets.indexOf(bullet);
-        // console.log(index)
-        if (index >= 0) {
-            bullets.splice(bullets.indexOf(bullet), 1);
-        }
-        bullet.attr("visibility", "hidden")
-    }
-
-    const distance = (u:Transform, v:Transform) => Math.sqrt(Math.abs((v.x - u.x)**2 + (v.y - u.y)**2));
-    const elemType = (elem:Elem) => elem.elem.tagName;
-
+    /* CURRIED (kind of): Test if two elements collide, each with two circular hitboxes of a given radius. Returns a boolean.
+    * Technically it's not fully curried since each function takes two parameters. I did this because it enables us to
+    * generate functions that test "have I collided with this specific element with this radius". Quite useful for
+    * testing collision with a commonly collided-with element such as the player.
+    */
     const collision = (elem1:Elem, radius1:number) => (elem2:Elem, radius2:number) =>
         distance(position(elem1), position(elem2)) <= radius1 + radius2;
 
-    const collidedWithShip = collision(g, 10);
+    // Test if a given element with a given radius collides with the player.
+    // Derived from curried function above.
+    const collidedWithShip = collision(g, shipHitboxRadius);
 
+    // Test if a given element collided with an alive bullet. Returns the bullet that shot the element if it was shot;
+    // undefined otherwise.
     const gotShot = (object:Elem, radius:number): Elem | undefined => bullets
         .filter(bullet => collision(object, radius)(bullet, bulletSize))[0];
 
+    // OBSERVABLE: Asteroid spawner that attempts to spawn an asteroid at a given interval specified above.
     Observable.interval(asteroidSpawnInterval)
-        .map(_=>({
-            size: Math.random()*100,
-            yPos: (Math.random()*10000) % SCREEN_MARGIN,
-            xVelocity: 4 - Math.random()*8,
-            yVelocity: 4 - Math.random()*8
+        .map(_=>({ // Generate random properties of an asteroid
+            size: Math.random()*biggestAsteroidConsidered,
+            yPos: (Math.random()*10000) % SCREEN_MARGIN, // Only spawn on screen's edge
+            xVelocity: maxAsteroidSpeed - Math.random() * maxAsteroidSpeed * 2, // x Velocity between -maxSpeed and +maxSpeed including 0
+            yVelocity: maxAsteroidSpeed - Math.random() * maxAsteroidSpeed * 2  // Same as above for y
         }))
-        .filter(rand => rand.size > 8 && rand.size < 45)
+        /* Remove any asteroid that WOULD have spawned with a size larger that what is described.
+         * This is what's meant by maximum considered size. This aims to add a touch of randomness
+         * to when asteroids spawn using a one-liner higher-order function
+         * */
+        .filter(rand => rand.size > minAsteroidRadius && rand.size < maxAsteroidRadius)
+        // For every successful asteroid spawn:
         .subscribe(rand => {
-            if (asteroidCount < maxAsteroids) {
+            if (asteroidCount < maxAsteroids) { // If we have space for another asteroid within the cap
                 asteroidCount++;
-                const aa = {x: SCREEN_MARGIN, y: rand.yPos,  rot: 0}
-                spawnAsteroid(
-                    rand.size,
-                    // {x: rand.xPos, y: SCREEN_MARGIN * -(rand.xPos % 2), rot: 0},
-                    aa,
-                    t => ({x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0}),
-                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/16)}, 100%, 50%)`
+                spawnAsteroid( // Spawn an asteroid with the following randomised properties
+                    rand.size, // A random radius
+                    {x: SCREEN_MARGIN, y: rand.yPos,  rot: 0}, // Starting position
+                    t => ({x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0}), // Velocity function
+                    // Color of the asteroid which depends on how fast a given asteroid is. Slower ones have lower hues, faster have higher hues.
+                    // Makes my assignment stand out a little bit. (A bit of extra functionality maybe?)
+                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/(maxAsteroidSpeed**2))}, 100%, 50%)`
                 );
             }
         });
