@@ -55,6 +55,7 @@ function asteroids() {
     // Non-constant global variables (eww...)
     let gameOver : boolean = false; // Is the game over?
     let asteroidCount : number = 0; // The amount of asteroids naturally spawned (not from splitting)
+    let score : number = 0;
 
     // Collision detection lists of elements
     const bullets : Elem[] = []; // Shared list of all bullet elements
@@ -91,6 +92,12 @@ function asteroids() {
         .attr("points", "-15,20 15,20 0,-20")
         .attr("style", "fill:black;stroke:white;stroke-width:5");
 
+    const scoreElement = new Elem(svg, "text") // Draw game over screen
+        .attr("x", "10px")
+        .attr("y", "30px")
+        .attr("fill", "#fff")
+        .attr("style", "font: bold 24px sans-serif;")
+    scoreElement.elem.innerHTML = "Score:";
 
     // == ELEMENT TRANSFORMATION FUNCTIONS (MOVEMENT) ==
 
@@ -242,8 +249,16 @@ function asteroids() {
 
     // == ASTEROIDS ==
 
+
+    /* CURRIED: Takes the radius of an asteroid and produces a function which can be
+    * fed into updateScore every time an asteroid is destroyed.
+    * The resulting function provides a new score proportional to the radius of the asteroid destroyed, meaning
+    * bigger asteroids score better. Adds a bit of strategy to the game.
+    * */
+    const asteroidScoreFunc = (radius:number) => (oldScore:number) => (oldScore + Math.ceil(radius) * 100);
+
     // Spawn a new asteroid of size radius, starting at initPos moving using a TransFunc. Can set a color optionally
-    // Impure: Reads from global bullet list, magic number globals and draws to the screen
+    // Impure: Reads from global bullet list and draws to the screen
     function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void {
         color = color === undefined? defaultAsteroidColor : color; // Set to default color if not defined
         const asteroid = new Elem(svg, 'circle') // Draw asteroid
@@ -267,6 +282,8 @@ function asteroids() {
                     deleted = true;
                     deleteBullet(bullet); // Delete the bullet that shot it
                     asteroidCount--;
+                    // Update the score by generating a score function and using it to modify the score based on its radius.
+                    updateScore(asteroidScoreFunc(radius));
                     // Spawn two new, smaller asteroids
                     color = color === undefined? defaultAsteroidColor : color; // Color is the same as the parent if it was defined
                     if (radius >= minAsteroidRadius * 2) { // Only multiply if it is big enough to have children larger than the minimum asteroid size
@@ -332,7 +349,20 @@ function asteroids() {
             }
         });
 
+    // SCORE
 
+    // Changes the score of the player and updates it onto the screen. How the score changes
+    // is modelled by a function which takes in the old score and produces a new one. Like "mapping" to the score.
+    // This allows for extra flexibility with scoring.
+    // Impure side-effects: Modifies a global mutable variable "score" and draws the score to the screen.
+    function updateScore(f : (_:number) => number) : void {
+        const newScore = Math.round(f(score));
+        scoreElement.elem.innerHTML = "Score: " + newScore.toString();
+        score = newScore
+    }
+
+    // Update the score to its initial value when the game starts.
+    updateScore(_ => score);
 }
 // the following simply runs your asteroids function on window load.  Make sure to leave it in place.
 if (typeof window != 'undefined')

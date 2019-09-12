@@ -5,6 +5,7 @@ function asteroids() {
     const rad = (deg) => deg * (Math.PI / 180);
     let gameOver = false;
     let asteroidCount = 0;
+    let score = 0;
     const bullets = [];
     const svg = document.getElementById("canvas");
     const g = new Elem(svg, 'g')
@@ -12,6 +13,12 @@ function asteroids() {
     const ship = new Elem(svg, 'polygon', g.elem)
         .attr("points", "-15,20 15,20 0,-20")
         .attr("style", "fill:black;stroke:white;stroke-width:5");
+    const scoreElement = new Elem(svg, "text")
+        .attr("x", "10px")
+        .attr("y", "30px")
+        .attr("fill", "#fff")
+        .attr("style", "font: bold 24px sans-serif;");
+    scoreElement.elem.innerHTML = "Score:";
     const floorTransform = (t) => ({ x: Math.floor(t.x), y: Math.floor(t.y), rot: Math.floor(t.rot) });
     function keepInBounds(t, bound) {
         const reorient = (n) => n < 0 ? (n % bound) + bound : n % bound;
@@ -104,6 +111,7 @@ function asteroids() {
             .attr("style", "font: bold 40px sans-serif;")
             .elem.innerHTML = "GAME OVER";
     }
+    const asteroidScoreFunc = (radius) => (oldScore) => (oldScore + Math.ceil(radius) * 100);
     function spawnAsteroid(radius, initPos, velocityFunc, color) {
         color = color === undefined ? defaultAsteroidColor : color;
         const asteroid = new Elem(svg, 'circle')
@@ -124,6 +132,7 @@ function asteroids() {
                     deleted = true;
                     deleteBullet(bullet);
                     asteroidCount--;
+                    updateScore(asteroidScoreFunc(radius));
                     color = color === undefined ? defaultAsteroidColor : color;
                     if (radius >= minAsteroidRadius * 2) {
                         spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x - asteroidDivergence, y: t.y + asteroidDivergence, rot: 0 }), color);
@@ -153,6 +162,12 @@ function asteroids() {
             spawnAsteroid(rand.size, { x: SCREEN_MARGIN, y: rand.yPos, rot: 0 }, t => ({ x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0 }), `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360 / (maxAsteroidSpeed ** 2))}, 100%, 50%)`);
         }
     });
+    function updateScore(f) {
+        const newScore = Math.round(f(score));
+        scoreElement.elem.innerHTML = "Score: " + newScore.toString();
+        score = newScore;
+    }
+    updateScore(_ => score);
 }
 if (typeof window != 'undefined')
     window.onload = () => {
