@@ -37,14 +37,14 @@ function asteroids() {
     const shipSpeed : number = 5, // Player's movement as pixels per frame (ppf)
         bulletColor : string = "#fff",
         bulletSpeed : number = 8, // Bullet movement ppf
-        bulletLifeFrames : number = 90, // Frames that a bullet lasts for before disintegrating
+        bulletLifeFrames : number = 50, // Frames that a bullet lasts for before disintegrating
         asteroidDivergence : number = 0.8, // Factor that an asteroid's children diverge from the original path by
         defaultAsteroidColor : string = "#000",
         minAsteroidRadius : number = 8,
         maxAsteroidRadius : number = 45,
         maxAsteroidSpeed : number = 4, // Asteroid's maximum speed in ppf (scalar: in either direction)
         biggestAsteroidConsidered : number = 100, // Biggest asteroid "considered" to be generated (Maybe be rejected for randomness, see spawnAsteroid func
-        maxAsteroids : number = 2,
+        maxAsteroids : number = 5,
         bulletSize : number = 3, // Radius of bullets shot
         asteroidSpawnInterval : number = 1000, // Every n milliseconds that an asteroid attempts to spawn.
         shipHitboxRadius : number = 10; // Radius of the ship's circular hitbox from its centre
@@ -56,6 +56,7 @@ function asteroids() {
     let gameOver : boolean = false; // Is the game over?
     let asteroidCount : number = 0; // The amount of asteroids naturally spawned (not from splitting)
     let score : number = 0;
+    let powerLevel = 0;
 
     // Collision detection lists of elements
     const bullets : Elem[] = []; // Shared list of all bullet elements
@@ -96,23 +97,28 @@ function asteroids() {
         .attr("x", "10px")
         .attr("y", "30px")
         .attr("fill", "#fff")
-        .attr("style", "font: bold 24px sans-serif;")
+        .attr("style", "font: bold 24px sans-serif;");
     scoreElement.elem.innerHTML = "Score:";
 
     // == ELEMENT TRANSFORMATION FUNCTIONS (MOVEMENT) ==
 
-    // Pure Movement Functions
+    // Pure Movement/Transform Functions
 
-    // Turns a Transform into a floor'd version of itself. i.e. all values have Math.floor() applied to it
-    const floorTransform = (t: Transform) : Transform => ({x: Math.floor(t.x), y: Math.floor(t.y), rot: Math.floor(t.rot)});
+    // CURRIED: Perform a map of a function onto a Transform (i.e. Transform => Transform) and return the result.
+    // This allows us to generate all kinds of Transform modifying functions such as the one below.
+    const mapTransform = (f:(_:number)=>number) => (t:Transform) => ({x: f(t.x), y: f(t.y), rot: f(t.rot)});
+
+    // Turns a Transform into a floor'd version of itself. i.e. all values have Math.floor() applied to it.
+    // Derived from curried mapTransform
+    const floorTransform = mapTransform(Math.floor);
 
     // Turns a Transform into a version of itself which is bounded by a given square plane. (In this case, the size of the window)
-    // Applies a torus topology to any Transform
+    // Applies a torus topology to any Transform.
+    // Can't use the curried mapTransform since we don't want to "torus-ify" the rotation.
     function keepInBounds(t: Transform, bound: number): Transform {
         const reorient = (n: number) => n < 0 ? (n % bound) + bound : n % bound; // Func that keeps a given n within a given bound via mod
         return {x: reorient(t.x), y: reorient(t.y), rot: t.rot} // Applied to each property of a Transform
     }
-
 
     // Movement Display Functions
 
@@ -187,7 +193,8 @@ function asteroids() {
     // Produce a bullet coming out of a given element (for reusability) given a timeout and velocity function
     // Impure: Draws information outside of the function body, being positions of existing elements
     // Side-effect: Draws on screen (IO)
-    function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc) : void {
+    function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc, startingPos?: Transform) : void {
+        if (startingPos === undefined) startingPos = position(elem);
         const bullet = new Elem(svg, 'circle') // Draw bullet
             .attr("r", bulletSize.toString())
             .attr("fill", bulletColor)
@@ -202,13 +209,19 @@ function asteroids() {
             liveBullet = false; // It is now dead, can't be killed again
         });
         // Move it to the starting position in-front of what shot it out
-        const startingPos = position(elem);
-        transformElement(bullet, _ => startingPos);
+        transformElement(bullet, _ => startingPos!);
 
         // Observable describing how it moves every frame (via a TransFunc)
         Observable.interval(1000 / FPS)
             .takeUntil(bulletDeath) // Stop moving once it "dies"
             .subscribe(_ => transformElement(bullet, velocityFunc)) // Move
+    }
+
+    function shootManyFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc, startPosFunctions: TransFunc[]){
+        const elemOrigin = position(elem);
+        startPosFunctions
+            .map(f => f(elemOrigin))
+            .forEach(mappedPos => shootFrom(elem, bulletTimeout, velocityFunc, mappedPos));
     }
 
     // Pure transform function describing bullet velocity
@@ -218,11 +231,48 @@ function asteroids() {
         rot: t.rot
     });
 
+    function generatePointArc(arcDegrees:number, numPoints:number) : TransFunc[]{
+        const deviationDegrees = (part:number) => ((part-1)*arcDegrees)/(numPoints-1) - (arcDegrees/2);
+        return Array(numPoints)
+            .fill(0)
+            .reduce((acc, e) => acc.concat([e + acc.length + 1]), [])
+            .map(deviationDegrees)
+            .map((radians:number) => (t:Transform) => ({x: t.x, y: t.y, rot: t.rot + radians}));
+
+    }
+
+    const powerLevelStages = [
+        [],
+        generatePointArc(10, 2),
+        generatePointArc(110, 3),
+        generatePointArc(90, 4),
+        generatePointArc(90, 5),
+        generatePointArc(75, 6),
+        generatePointArc(200, 16),
+    ];
+
+    function shootAtPowerLevel(elem:Elem, bulletTimeout:number, bulletMovement:TransFunc, powerLevel : number) {
+        if (powerLevel == 0) {
+            shootFrom(g, bulletTimeout, bulletMovement)
+        } else {
+            shootManyFrom(g, bulletTimeout, bulletMovement, powerLevelStages[powerLevel])
+        }
+    }
+
     // OBSERVABLE: for player shooting controls
+
     controls
         .filter(k => k == " ")
         .subscribe(_ => {
-            shootFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement)
+            // shootFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement)
+            // const test = [
+            //     (t:Transform) => ({x: t.x + 15, y: t.y + 10, rot: t.rot + 10}),
+            //     (t:Transform) => ({x: t.x + 15, y: t.y + 10, rot: t.rot + 20}),
+            //     (t:Transform) => ({x: t.x + 15, y: t.y + 10, rot: t.rot + 30}),
+            // ];
+            // shootManyFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement, test)
+            // shootManyFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement, generatePointArc(90, 12))
+            shootAtPowerLevel(g, bulletLifeFrames * 1000/FPS, bulletMovement, powerLevel)
         });
 
     // Delete a bullet safely and stop asteroids from checking for it

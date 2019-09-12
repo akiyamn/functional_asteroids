@@ -1,11 +1,12 @@
 "use strict";
 function asteroids() {
     const FPS = 60, SCREEN_MARGIN = 650;
-    const shipSpeed = 5, bulletColor = "#fff", bulletSpeed = 8, bulletLifeFrames = 90, asteroidDivergence = 0.8, defaultAsteroidColor = "#000", minAsteroidRadius = 8, maxAsteroidRadius = 45, maxAsteroidSpeed = 4, biggestAsteroidConsidered = 100, maxAsteroids = 2, bulletSize = 3, asteroidSpawnInterval = 1000, shipHitboxRadius = 10;
+    const shipSpeed = 5, bulletColor = "#fff", bulletSpeed = 8, bulletLifeFrames = 50, asteroidDivergence = 0.8, defaultAsteroidColor = "#000", minAsteroidRadius = 8, maxAsteroidRadius = 45, maxAsteroidSpeed = 4, biggestAsteroidConsidered = 100, maxAsteroids = 5, bulletSize = 3, asteroidSpawnInterval = 1000, shipHitboxRadius = 10;
     const rad = (deg) => deg * (Math.PI / 180);
     let gameOver = false;
     let asteroidCount = 0;
     let score = 0;
+    let powerLevel = 0;
     const bullets = [];
     const svg = document.getElementById("canvas");
     const g = new Elem(svg, 'g')
@@ -19,7 +20,8 @@ function asteroids() {
         .attr("fill", "#fff")
         .attr("style", "font: bold 24px sans-serif;");
     scoreElement.elem.innerHTML = "Score:";
-    const floorTransform = (t) => ({ x: Math.floor(t.x), y: Math.floor(t.y), rot: Math.floor(t.rot) });
+    const mapTransform = (f) => (t) => ({ x: f(t.x), y: f(t.y), rot: f(t.rot) });
+    const floorTransform = mapTransform(Math.floor);
     function keepInBounds(t, bound) {
         const reorient = (n) => n < 0 ? (n % bound) + bound : n % bound;
         return { x: reorient(t.x), y: reorient(t.y), rot: t.rot };
@@ -65,7 +67,9 @@ function asteroids() {
     controlElement(g, controls, k => k == "a", left);
     controlElement(g, controls, k => k == "s", backward);
     controlElement(g, controls, k => k == "d", right);
-    function shootFrom(elem, bulletTimeout, velocityFunc) {
+    function shootFrom(elem, bulletTimeout, velocityFunc, startingPos) {
+        if (startingPos === undefined)
+            startingPos = position(elem);
         const bullet = new Elem(svg, 'circle')
             .attr("r", bulletSize.toString())
             .attr("fill", bulletColor)
@@ -78,21 +82,51 @@ function asteroids() {
                 deleteBullet(bullet);
             liveBullet = false;
         });
-        const startingPos = position(elem);
         transformElement(bullet, _ => startingPos);
         Observable.interval(1000 / FPS)
             .takeUntil(bulletDeath)
             .subscribe(_ => transformElement(bullet, velocityFunc));
+    }
+    function shootManyFrom(elem, bulletTimeout, velocityFunc, startPosFunctions) {
+        const elemOrigin = position(elem);
+        startPosFunctions
+            .map(f => f(elemOrigin))
+            .forEach(mappedPos => shootFrom(elem, bulletTimeout, velocityFunc, mappedPos));
     }
     const bulletMovement = (t) => ({
         x: ((t.x + (Math.sin(rad(t.rot)) * bulletSpeed))),
         y: (t.y - (Math.cos(rad(t.rot)) * bulletSpeed)),
         rot: t.rot
     });
+    function generatePointArc(arcDegrees, numPoints) {
+        const deviationDegrees = (part) => ((part - 1) * arcDegrees) / (numPoints - 1) - (arcDegrees / 2);
+        return Array(numPoints)
+            .fill(0)
+            .reduce((acc, e) => acc.concat([e + acc.length + 1]), [])
+            .map(deviationDegrees)
+            .map((radians) => (t) => ({ x: t.x, y: t.y, rot: t.rot + radians }));
+    }
+    const powerLevelStages = [
+        [],
+        generatePointArc(10, 2),
+        generatePointArc(110, 3),
+        generatePointArc(90, 4),
+        generatePointArc(90, 5),
+        generatePointArc(75, 6),
+        generatePointArc(200, 16),
+    ];
+    function shootAtPowerLevel(elem, bulletTimeout, bulletMovement, powerLevel) {
+        if (powerLevel == 0) {
+            shootFrom(g, bulletTimeout, bulletMovement);
+        }
+        else {
+            shootManyFrom(g, bulletTimeout, bulletMovement, powerLevelStages[powerLevel]);
+        }
+    }
     controls
         .filter(k => k == " ")
         .subscribe(_ => {
-        shootFrom(g, bulletLifeFrames * 1000 / FPS, bulletMovement);
+        shootAtPowerLevel(g, bulletLifeFrames * 1000 / FPS, bulletMovement, powerLevel);
     });
     function deleteBullet(bullet) {
         const index = bullets.indexOf(bullet);
