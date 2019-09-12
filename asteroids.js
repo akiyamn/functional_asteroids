@@ -1,7 +1,7 @@
 "use strict";
 function asteroids() {
-    const FPS = 60, SCREEN_MARGIN = 650;
-    const shipSpeed = 5, bulletColor = "#fff", bulletSpeed = 8, bulletLifeFrames = 50, asteroidDivergence = 0.8, defaultAsteroidColor = "#000", minAsteroidRadius = 8, maxAsteroidRadius = 45, maxAsteroidSpeed = 4, biggestAsteroidConsidered = 100, maxAsteroids = 5, bulletSize = 3, asteroidSpawnInterval = 1000, shipHitboxRadius = 10;
+    const FPS = 60, SCREEN_MARGIN = 655;
+    const shipSpeed = 5, bulletColor = "#fff", bulletSpeed = 8, bulletLifeFrames = 50, asteroidDivergence = 0.8, defaultAsteroidColor = "#000", minAsteroidRadius = 8, maxAsteroidRadius = 45, maxAsteroidSpeed = 4, biggestAsteroidConsidered = 100, maxAsteroids = 4, bulletSize = 3, asteroidSpawnInterval = 1000, shipHitboxRadius = 10, starHitboxRadius = 15, starEdgePadding = 10, starScoreModifier = (score) => score * 1.1, starSpawnRate = 1500, starSpawnChance = 3;
     const rad = (deg) => deg * (Math.PI / 180);
     let gameOver = false;
     let asteroidCount = 0;
@@ -20,6 +20,12 @@ function asteroids() {
         .attr("fill", "#fff")
         .attr("style", "font: bold 24px sans-serif;");
     scoreElement.elem.innerHTML = "Score:";
+    const powerMeter = new Elem(svg, "text")
+        .attr("x", "10px")
+        .attr("y", "55px")
+        .attr("fill", "#fff")
+        .attr("style", "font: bold 24px sans-serif;");
+    powerMeter.elem.innerHTML = "Power:";
     const mapTransform = (f) => (t) => ({ x: f(t.x), y: f(t.y), rot: f(t.rot) });
     const floorTransform = mapTransform(Math.floor);
     function keepInBounds(t, bound) {
@@ -108,12 +114,13 @@ function asteroids() {
     }
     const powerLevelStages = [
         [],
-        generatePointArc(10, 2),
+        generatePointArc(20, 2),
         generatePointArc(110, 3),
         generatePointArc(90, 4),
         generatePointArc(90, 5),
         generatePointArc(75, 6),
-        generatePointArc(200, 16),
+        generatePointArc(75, 8),
+        generatePointArc(110, 10),
     ];
     function shootAtPowerLevel(elem, bulletTimeout, bulletMovement, powerLevel) {
         if (powerLevel == 0) {
@@ -135,16 +142,54 @@ function asteroids() {
         bullet.attr("visibility", "hidden");
     }
     function killPlayer(ship) {
-        ship.attr("visibility", "hidden");
-        gameOver = true;
-        new Elem(svg, "text")
-            .attr("x", "50%")
-            .attr("y", "50%")
-            .attr("text-anchor", "middle")
-            .attr("fill", "#fff")
-            .attr("style", "font: bold 40px sans-serif;")
-            .elem.innerHTML = "GAME OVER";
+        if (!gameOver) {
+            ship.attr("visibility", "hidden");
+            gameOver = true;
+            new Elem(svg, "text")
+                .attr("x", "50%")
+                .attr("y", "50%")
+                .attr("text-anchor", "middle")
+                .attr("fill", "#fff")
+                .attr("style", "font: bold 40px sans-serif;")
+                .elem.innerHTML = "GAME OVER";
+        }
     }
+    function updatePowerLevel(f) {
+        const transformation = f(powerLevel);
+        powerLevel = transformation >= powerLevelStages.length ?
+            powerLevelStages.length - 1 : transformation;
+        powerMeter.elem.innerHTML = "Power: " + (powerLevel + 1);
+    }
+    updatePowerLevel(_ => powerLevel);
+    function spawnStar(initPos, velocityFunc) {
+        const powerStar = new Elem(svg, 'polygon')
+            .attr("points", "10 -5, 15 5, 25 10, 15 15, 10 25, 5 15, -5 10, 5 5")
+            .attr("style", "fill:#880;stroke:white;stroke-width:5")
+            .attr("transform", "translate(0 0) rotate(0)");
+        transformElement(powerStar, _ => initPos);
+        let alive = true;
+        const killStar = () => { alive = false; powerStar.attr("visibility", "hidden"); };
+        Observable.interval(1000 / FPS)
+            .subscribe(_ => {
+            if (alive) {
+                transformElement(powerStar, velocityFunc);
+                if (position(powerStar).x >= SCREEN_MARGIN - starEdgePadding)
+                    killStar();
+                if (collidedWithShip(powerStar, starHitboxRadius) && !gameOver) {
+                    killStar();
+                    updatePowerLevel(n => n + 1);
+                    updateScore(starScoreModifier);
+                }
+            }
+        });
+    }
+    const starVelocity = (t) => ({ x: t.x + 6, y: t.y, rot: t.rot + 5 });
+    Observable.interval(starSpawnRate)
+        .filter(_ => (Math.floor(Math.random() * 100) % starSpawnChance == 0))
+        .map(_ => (Math.random() * 10000) % SCREEN_MARGIN)
+        .subscribe(newY => {
+        spawnStar({ x: 0, y: newY, rot: 0 }, starVelocity);
+    });
     const asteroidScoreFunc = (radius) => (oldScore) => (oldScore + Math.ceil(radius) * 100);
     function spawnAsteroid(radius, initPos, velocityFunc, color) {
         color = color === undefined ? defaultAsteroidColor : color;
@@ -198,7 +243,7 @@ function asteroids() {
     });
     function updateScore(f) {
         const newScore = Math.round(f(score));
-        scoreElement.elem.innerHTML = "Score: " + newScore.toString();
+        scoreElement.elem.innerHTML = "Score: " + newScore;
         score = newScore;
     }
     updateScore(_ => score);

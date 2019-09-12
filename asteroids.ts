@@ -31,7 +31,7 @@ function asteroids() {
     // == GAME SETTINGS ==
     const
         FPS = 60,
-        SCREEN_MARGIN = 650;
+        SCREEN_MARGIN = 655;
 
     // Game mechanic constants (to avoid "magic numbers")
     const shipSpeed : number = 5, // Player's movement as pixels per frame (ppf)
@@ -44,10 +44,15 @@ function asteroids() {
         maxAsteroidRadius : number = 45,
         maxAsteroidSpeed : number = 4, // Asteroid's maximum speed in ppf (scalar: in either direction)
         biggestAsteroidConsidered : number = 100, // Biggest asteroid "considered" to be generated (Maybe be rejected for randomness, see spawnAsteroid func
-        maxAsteroids : number = 5,
+        maxAsteroids : number = 4,
         bulletSize : number = 3, // Radius of bullets shot
         asteroidSpawnInterval : number = 1000, // Every n milliseconds that an asteroid attempts to spawn.
-        shipHitboxRadius : number = 10; // Radius of the ship's circular hitbox from its centre
+        shipHitboxRadius : number = 10, // Radius of the ship's circular hitbox from its centre
+        starHitboxRadius : number = 15,
+        starEdgePadding = 10,
+        starScoreModifier = (score:number) => score * 1.1,
+        starSpawnRate = 1500,
+        starSpawnChance = 3;
 
     // Basic helpers
     const rad = (deg: number) : number => deg * (Math.PI / 180); // Classic trig
@@ -100,6 +105,13 @@ function asteroids() {
         .attr("style", "font: bold 24px sans-serif;");
     scoreElement.elem.innerHTML = "Score:";
 
+    const powerMeter = new Elem(svg, "text") // Draw game over screen
+        .attr("x", "10px")
+        .attr("y", "55px")
+        .attr("fill", "#fff")
+        .attr("style", "font: bold 24px sans-serif;");
+    powerMeter.elem.innerHTML = "Power:";
+
     // == ELEMENT TRANSFORMATION FUNCTIONS (MOVEMENT) ==
 
     // Pure Movement/Transform Functions
@@ -132,7 +144,7 @@ function asteroids() {
 
     // Return the current position of any svg element (assuming it has been defined) as a Transform
     // Impure: Takes information from the screen, outside of the function body
-    function position(elem: Elem) {
+    function position(elem: Elem) : Transform{
         const parts = elem.attr("transform")
             // Apply an ugly regex to the transform attribute to extract the floating point values
             .match(/translate\((-*[0-9]+\.*[0-9]*)\s(-*[0-9]+\.*[0-9]*)\)\srotate\((-*[0-9]+\.*[0-9]*)\)/)!
@@ -243,12 +255,13 @@ function asteroids() {
 
     const powerLevelStages = [
         [],
-        generatePointArc(10, 2),
+        generatePointArc(20, 2),
         generatePointArc(110, 3),
         generatePointArc(90, 4),
         generatePointArc(90, 5),
         generatePointArc(75, 6),
-        generatePointArc(200, 16),
+        generatePointArc(75, 8),
+        generatePointArc(110, 10),
     ];
 
     function shootAtPowerLevel(elem:Elem, bulletTimeout:number, bulletMovement:TransFunc, powerLevel : number) {
@@ -264,14 +277,6 @@ function asteroids() {
     controls
         .filter(k => k == " ")
         .subscribe(_ => {
-            // shootFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement)
-            // const test = [
-            //     (t:Transform) => ({x: t.x + 15, y: t.y + 10, rot: t.rot + 10}),
-            //     (t:Transform) => ({x: t.x + 15, y: t.y + 10, rot: t.rot + 20}),
-            //     (t:Transform) => ({x: t.x + 15, y: t.y + 10, rot: t.rot + 30}),
-            // ];
-            // shootManyFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement, test)
-            // shootManyFrom(g, bulletLifeFrames * 1000/FPS, bulletMovement, generatePointArc(90, 12))
             shootAtPowerLevel(g, bulletLifeFrames * 1000/FPS, bulletMovement, powerLevel)
         });
 
@@ -286,16 +291,63 @@ function asteroids() {
     // Kill the player's ship and enter a gameOver state
     // Impure side-effects: Modifies global, mutable gameOver state and draws on the screen
     function killPlayer(ship:Elem) : void {
-        ship.attr("visibility", "hidden"); // Hide the ship
-        gameOver = true;
-        new Elem(svg, "text") // Draw game over screen
-            .attr("x", "50%")
-            .attr("y", "50%")
-            .attr("text-anchor", "middle")
-            .attr("fill", "#fff")
-            .attr("style", "font: bold 40px sans-serif;")
-            .elem.innerHTML = "GAME OVER"
+        if (!gameOver) {
+            ship.attr("visibility", "hidden"); // Hide the ship
+            gameOver = true;
+            new Elem(svg, "text") // Draw game over screen
+                .attr("x", "50%")
+                .attr("y", "50%")
+                .attr("text-anchor", "middle")
+                .attr("fill", "#fff")
+                .attr("style", "font: bold 40px sans-serif;")
+                .elem.innerHTML = "GAME OVER"
+        }
     }
+
+    // == POWER UPS / STARS ==
+
+    function updatePowerLevel(f : (_:number) => number) : void {
+        const transformation = f(powerLevel);
+        powerLevel = transformation >= powerLevelStages.length?
+            powerLevelStages.length-1 : transformation;
+        powerMeter.elem.innerHTML = "Power: " + (powerLevel + 1)
+    }
+
+    updatePowerLevel(_ => powerLevel);
+
+    function spawnStar(initPos:Transform, velocityFunc:TransFunc) : void {
+        const powerStar = new Elem(svg, 'polygon')
+            .attr("points", "10 -5, 15 5, 25 10, 15 15, 10 25, 5 15, -5 10, 5 5")
+            .attr("style", "fill:#880;stroke:white;stroke-width:5")
+            .attr("transform", "translate(0 0) rotate(0)");
+        transformElement(powerStar, _=>initPos);
+        let alive = true;
+        const killStar = () => {alive = false; powerStar.attr("visibility", "hidden")};
+        Observable.interval(1000/FPS)
+            .subscribe(_=>{
+                if (alive) {
+                    transformElement(powerStar, velocityFunc);
+                    if (position(powerStar).x >= SCREEN_MARGIN - starEdgePadding) killStar();
+                    if (collidedWithShip(powerStar, starHitboxRadius) && !gameOver) {
+                        killStar();
+                        updatePowerLevel(n => n + 1);
+                        updateScore(starScoreModifier);
+                    }
+                }
+            })
+    }
+
+    const starVelocity = (t:Transform) => ({x: t.x + 6, y: t.y, rot: t.rot + 5});
+
+    Observable.interval(starSpawnRate)
+        .filter(_=>(Math.floor(Math.random()*100)%starSpawnChance==0))
+        .map(_=>(Math.random()*10000)%SCREEN_MARGIN)
+        .subscribe(newY=>{
+           spawnStar(
+               {x: 0, y: newY, rot: 0},
+               starVelocity
+           )
+        });
 
     // == ASTEROIDS ==
 
@@ -407,7 +459,7 @@ function asteroids() {
     // Impure side-effects: Modifies a global mutable variable "score" and draws the score to the screen.
     function updateScore(f : (_:number) => number) : void {
         const newScore = Math.round(f(score));
-        scoreElement.elem.innerHTML = "Score: " + newScore.toString();
+        scoreElement.elem.innerHTML = "Score: " + newScore;
         score = newScore
     }
 
