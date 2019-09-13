@@ -1,6 +1,10 @@
 // FIT2102 2019 Assignment 1
 // https://docs.google.com/document/d/1Gr-M6LTU-tfm4yabqZWJYg-zTjEVqHKKTCvePGCYsUA/edit?usp=sharing
 
+/*
+Alex Occhipinti - 29994705
+ */
+
 
 function asteroids() {
 
@@ -28,13 +32,15 @@ function asteroids() {
      */
 
     /* DISCLAIMERS:
-    - Yes, I know 'let' is bad practise
+    - Sometimes asteroids take a while to spawn in the beginning, since their spawning is random.
     - Any function that I haven't described as impure is pure
     - Any function that has side-effects is impure
     - Any function that reads from global constant is impure, but I feel that this isn't as bad
     as this is mostly to avoid having "magic numbers" or "magic strings"
     - The torus borders aren't perfect
     - Weird behaviour happens after the player dies (doesn't affect game play)
+    - I used WebStorm instead of VSCode, I hope that doesn't mess anything up
+    - Z-value problems with text exist
      */
 
 
@@ -63,7 +69,7 @@ function asteroids() {
         starEdgePadding : 10, // Padding from the right side of the screen where stars despawn
         starSpawnRate : 1500, // Every _ milliseconds, attempt to spawn a power star
         starSpawnChance : 3 // A 1 in _ chance to spawn a star every starSpawnRate milliseconds
-    }
+    };
 
     // Basic helpers
     const rad = (deg: number) : number => deg * (Math.PI / 180); // Classic trig
@@ -92,7 +98,7 @@ function asteroids() {
 
     /* The heart of my functional programming based game.
     A function of this type describes how an element's position and rotation changes over time.
-    Acts as a parametric equation describing the velocity and rotation of elements.
+    Kind of acts as a parametric equation describing the velocity and rotation of elements.
     Can be chained together to create more complex transformation functions.
      */
     type TransFunc = (t: Transform) => Transform
@@ -247,13 +253,14 @@ function asteroids() {
     // Each TransFunc modifies the origin of the element in some way by passing it as input. All of these functions are pure.
     // This is very powerful for my bullethell style game as it allows for a diverse range of patterns of bullets to be shot out from any given element.
     // The generatePointArc is an example of a function that can generate a complex set of starting functions to create a nice pattern.
-    // (Impure) Side-effect: modifies game IO by drawing to the screen.
-    // Modifies global bullet list
+    // (Impure) Gathers information about external elements
+    // Side-effect: modifies game IO by drawing to the screen.
+    // Side-effect: Modifies global bullet list
     function shootManyFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc, startPosFunctions: TransFunc[]){
-        const elemOrigin = position(elem);
+        const elemOrigin = position(elem); // Origin of the element passed in
         startPosFunctions
-            .map(f => f(elemOrigin))
-            .forEach(mappedPos => shootFrom(elem, bulletTimeout, velocityFunc, mappedPos));
+            .map(f => f(elemOrigin)) // Transform the origin with each TransFunc
+            .forEach(mappedPos => shootFrom(elem, bulletTimeout, velocityFunc, mappedPos)); // Shoot each bullet
     }
 
     // Pure transform function describing bullet velocity
@@ -267,12 +274,14 @@ function asteroids() {
     // to form an arc of a given amount of points spaced out over a given number of degrees.
     // E.g. 3 points over a 90 degree arc would position at -45 deg, 0 deg and 45 deg.
     function generatePointArc(arcDegrees:number, numPoints:number) : TransFunc[]{
+        // How far does (part out of numPoints) need to deviate to be equally spaced(ish)?
         const deviationDegrees = (part:number) => ((part-1)*arcDegrees)/(numPoints-1) - (arcDegrees/2);
-        return Array(numPoints)
-            .fill(0)
-            .reduce((acc, e) => acc.concat([e + acc.length + 1]), [])
-            .map(deviationDegrees)
-            .map((radians:number) => (t:Transform) => ({x: t.x, y: t.y, rot: t.rot + radians}));
+        // Build up the array of TransFuncs
+        return Array(numPoints) // Empty array with the amount of points we need in as the length
+            .fill(0) // Fill it with any value
+            .reduce((acc, e) => acc.concat([e + acc.length + 1]), []) // Fill it with ascending numbers
+            .map(deviationDegrees) // Map each ascending number to its deviation in degrees
+            .map((radians:number) => (t:Transform) => ({x: t.x, y: t.y, rot: t.rot + radians})); // Construct a TransFunc from that
 
     }
 
@@ -369,10 +378,10 @@ function asteroids() {
     }
 
     // A transform function describing the velocity of every star created
-    const starVelocity = (t:Transform) => ({x: t.x + 6, y: t.y, rot: t.rot + 5});
+    const starVelocity = (t:Transform) : Transform => ({x: t.x + 6, y: t.y, rot: t.rot + 5});
 
     // The pure function applied to the score whenever a star is picked up.
-    const starScoreModifier = (score: number) => score * 1.1
+    const starScoreModifier = (score: number) : number => score * 1.1;
 
     // Star spawner observable
     Observable.interval(DEFAULTS.starSpawnRate)

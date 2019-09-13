@@ -1,7 +1,26 @@
 "use strict";
 function asteroids() {
     const FPS = 60, SCREEN_MARGIN = 655;
-    const shipSpeed = 5, bulletColor = "#fff", bulletSpeed = 8, bulletLifeFrames = 50, asteroidDivergence = 0.8, defaultAsteroidColor = "#000", minAsteroidRadius = 8, maxAsteroidRadius = 45, maxAsteroidSpeed = 4, biggestAsteroidConsidered = 100, maxAsteroids = 4, bulletSize = 3, asteroidSpawnInterval = 1000, shipHitboxRadius = 10, starHitboxRadius = 15, starEdgePadding = 10, starScoreModifier = (score) => score * 1.1, starSpawnRate = 1500, starSpawnChance = 3;
+    const DEFAULTS = {
+        shipSpeed: 5,
+        bulletColor: "#fff",
+        bulletSpeed: 8,
+        bulletLifeFrames: 50,
+        asteroidDivergence: 0.8,
+        defaultAsteroidColor: "#000",
+        minAsteroidRadius: 8,
+        maxAsteroidRadius: 45,
+        maxAsteroidSpeed: 4,
+        biggestAsteroidConsidered: 100,
+        maxAsteroids: 4,
+        bulletSize: 3,
+        asteroidSpawnInterval: 1000,
+        shipHitboxRadius: 10,
+        starHitboxRadius: 15,
+        starEdgePadding: 10,
+        starSpawnRate: 1500,
+        starSpawnChance: 3
+    };
     const rad = (deg) => deg * (Math.PI / 180);
     let gameOver = false;
     let asteroidCount = 0;
@@ -61,14 +80,14 @@ function asteroids() {
         });
     }
     const forward = (t) => ({
-        x: ((t.x + (Math.sin(rad(t.rot)) * shipSpeed))),
-        y: (t.y - (Math.cos(rad(t.rot)) * shipSpeed)),
+        x: ((t.x + (Math.sin(rad(t.rot)) * DEFAULTS.shipSpeed))),
+        y: (t.y - (Math.cos(rad(t.rot)) * DEFAULTS.shipSpeed)),
         rot: t.rot
     }), backward = (t) => ({
-        x: ((t.x - (Math.sin(rad(t.rot)) * shipSpeed))),
-        y: (t.y + (Math.cos(rad(t.rot)) * shipSpeed)),
+        x: ((t.x - (Math.sin(rad(t.rot)) * DEFAULTS.shipSpeed))),
+        y: (t.y + (Math.cos(rad(t.rot)) * DEFAULTS.shipSpeed)),
         rot: t.rot
-    }), right = (t) => ({ x: t.x, y: t.y, rot: (t.rot + shipSpeed) }), left = (t) => ({ x: t.x, y: t.y, rot: (t.rot - shipSpeed) });
+    }), right = (t) => ({ x: t.x, y: t.y, rot: (t.rot + DEFAULTS.shipSpeed) }), left = (t) => ({ x: t.x, y: t.y, rot: (t.rot - DEFAULTS.shipSpeed) });
     controlElement(g, controls, k => k == "w", forward);
     controlElement(g, controls, k => k == "a", left);
     controlElement(g, controls, k => k == "s", backward);
@@ -77,8 +96,8 @@ function asteroids() {
         if (startingPos === undefined)
             startingPos = position(elem);
         const bullet = new Elem(svg, 'circle')
-            .attr("r", bulletSize.toString())
-            .attr("fill", bulletColor)
+            .attr("r", DEFAULTS.bulletSize.toString())
+            .attr("fill", DEFAULTS.bulletColor)
             .attr("transform", "translate(0 0) rotate(0)");
         let liveBullet = true;
         bullets.push(bullet);
@@ -100,8 +119,8 @@ function asteroids() {
             .forEach(mappedPos => shootFrom(elem, bulletTimeout, velocityFunc, mappedPos));
     }
     const bulletMovement = (t) => ({
-        x: ((t.x + (Math.sin(rad(t.rot)) * bulletSpeed))),
-        y: (t.y - (Math.cos(rad(t.rot)) * bulletSpeed)),
+        x: ((t.x + (Math.sin(rad(t.rot)) * DEFAULTS.bulletSpeed))),
+        y: (t.y - (Math.cos(rad(t.rot)) * DEFAULTS.bulletSpeed)),
         rot: t.rot
     });
     function generatePointArc(arcDegrees, numPoints) {
@@ -120,7 +139,6 @@ function asteroids() {
         generatePointArc(90, 5),
         generatePointArc(75, 6),
         generatePointArc(75, 8),
-        generatePointArc(110, 10),
     ];
     function shootAtPowerLevel(elem, bulletTimeout, bulletMovement, powerLevel) {
         if (powerLevel == 0) {
@@ -133,7 +151,7 @@ function asteroids() {
     controls
         .filter(k => k == " ")
         .subscribe(_ => {
-        shootAtPowerLevel(g, bulletLifeFrames * 1000 / FPS, bulletMovement, powerLevel);
+        shootAtPowerLevel(g, DEFAULTS.bulletLifeFrames * 1000 / FPS, bulletMovement, powerLevel);
     });
     function deleteBullet(bullet) {
         const index = bullets.indexOf(bullet);
@@ -173,9 +191,9 @@ function asteroids() {
             .filter(() => alive)
             .subscribe(_ => {
             transformElement(powerStar, velocityFunc);
-            if (position(powerStar).x >= SCREEN_MARGIN - starEdgePadding)
+            if (position(powerStar).x >= SCREEN_MARGIN - DEFAULTS.starEdgePadding)
                 killStar();
-            if (collidedWithShip(powerStar, starHitboxRadius) && !gameOver) {
+            if (collidedWithShip(powerStar, DEFAULTS.starHitboxRadius) && !gameOver) {
                 killStar();
                 updatePowerLevel(n => n + 1);
                 updateScore(starScoreModifier);
@@ -183,15 +201,16 @@ function asteroids() {
         });
     }
     const starVelocity = (t) => ({ x: t.x + 6, y: t.y, rot: t.rot + 5 });
-    Observable.interval(starSpawnRate)
-        .filter(_ => (Math.floor(Math.random() * 100) % starSpawnChance == 0))
+    const starScoreModifier = (score) => score * 1.1;
+    Observable.interval(DEFAULTS.starSpawnRate)
+        .filter(_ => (Math.floor(Math.random() * 100) % DEFAULTS.starSpawnChance == 0))
         .map(_ => (Math.random() * 10000) % SCREEN_MARGIN)
         .subscribe(newY => {
         spawnStar({ x: 0, y: newY, rot: 0 }, starVelocity);
     });
     const asteroidScoreFunc = (radius) => (oldScore) => (oldScore + Math.ceil(radius) * 100);
     function spawnAsteroid(radius, initPos, velocityFunc, color) {
-        color = color === undefined ? defaultAsteroidColor : color;
+        color = color === undefined ? DEFAULTS.defaultAsteroidColor : color;
         const asteroid = new Elem(svg, 'circle')
             .attr("r", radius.toString())
             .attr("fill", color)
@@ -211,10 +230,10 @@ function asteroids() {
                 deleteBullet(bullet);
                 asteroidCount--;
                 updateScore(asteroidScoreFunc(radius));
-                color = color === undefined ? defaultAsteroidColor : color;
-                if (radius >= minAsteroidRadius * 2) {
-                    spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x - asteroidDivergence, y: t.y + asteroidDivergence, rot: 0 }), color);
-                    spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x + asteroidDivergence, y: t.y - asteroidDivergence, rot: 0 }), color);
+                color = color === undefined ? DEFAULTS.defaultAsteroidColor : color;
+                if (radius >= DEFAULTS.minAsteroidRadius * 2) {
+                    spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x - DEFAULTS.asteroidDivergence, y: t.y + DEFAULTS.asteroidDivergence, rot: 0 }), color);
+                    spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x + DEFAULTS.asteroidDivergence, y: t.y - DEFAULTS.asteroidDivergence, rot: 0 }), color);
                 }
                 asteroid.elem.remove();
             }
@@ -222,21 +241,21 @@ function asteroids() {
     }
     const distance = (u, v) => Math.sqrt(Math.abs((v.x - u.x) ** 2 + (v.y - u.y) ** 2));
     const collision = (elem1, radius1) => (elem2, radius2) => distance(position(elem1), position(elem2)) <= radius1 + radius2;
-    const collidedWithShip = collision(g, shipHitboxRadius);
+    const collidedWithShip = collision(g, DEFAULTS.shipHitboxRadius);
     const gotShot = (object, radius) => bullets
-        .filter(bullet => collision(object, radius)(bullet, bulletSize))[0];
-    Observable.interval(asteroidSpawnInterval)
+        .filter(bullet => collision(object, radius)(bullet, DEFAULTS.bulletSize))[0];
+    Observable.interval(DEFAULTS.asteroidSpawnInterval)
         .map(_ => ({
-        size: Math.random() * biggestAsteroidConsidered,
+        size: Math.random() * DEFAULTS.biggestAsteroidConsidered,
         yPos: (Math.random() * 10000) % SCREEN_MARGIN,
-        xVelocity: maxAsteroidSpeed - Math.random() * maxAsteroidSpeed * 2,
-        yVelocity: maxAsteroidSpeed - Math.random() * maxAsteroidSpeed * 2
+        xVelocity: DEFAULTS.maxAsteroidSpeed - Math.random() * DEFAULTS.maxAsteroidSpeed * 2,
+        yVelocity: DEFAULTS.maxAsteroidSpeed - Math.random() * DEFAULTS.maxAsteroidSpeed * 2
     }))
-        .filter(rand => rand.size > minAsteroidRadius && rand.size < maxAsteroidRadius)
+        .filter(rand => rand.size > DEFAULTS.minAsteroidRadius && rand.size < DEFAULTS.maxAsteroidRadius)
         .subscribe(rand => {
-        if (asteroidCount < maxAsteroids) {
+        if (asteroidCount < DEFAULTS.maxAsteroids) {
             asteroidCount++;
-            spawnAsteroid(rand.size, { x: SCREEN_MARGIN, y: rand.yPos, rot: 0 }, t => ({ x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0 }), `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360 / (maxAsteroidSpeed ** 2))}, 100%, 50%)`);
+            spawnAsteroid(rand.size, { x: SCREEN_MARGIN, y: rand.yPos, rot: 0 }, t => ({ x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0 }), `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360 / (DEFAULTS.maxAsteroidSpeed ** 2))}, 100%, 50%)`);
         }
     });
     function updateScore(f) {
