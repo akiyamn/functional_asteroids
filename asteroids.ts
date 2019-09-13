@@ -14,7 +14,17 @@ function asteroids() {
      */
 
     /* EXTRA BONUS FEATURE (aiming for HD 90+):
+    I have incorporated a Japanese arcade-style "bullethell" game called Touhou into my game. (Specifically Touhou 6)
+    Gameplay of Touhou 6: https://www.youtube.com/watch?v=KJXUt9H9OZM
+    (The little red Ps are power tokens.)
 
+    In Touhou, the player can collect "power tokens" which allow for the player to shoot many bullets at once to destroy enemies,
+     resulting in crazy patterns of bullets everyone on the screen. I have added a similar mechanic to my game in the
+     form of "power stars".
+
+     When you collect a power star, you will gain a power level which moves you to another tier of shooting.
+     At power level 1 (0 in the code), you shoot just one bullet like in normal asteroids. However, later power levels
+     allow for shooting arcs of multiple bullets at varying pre-programmed angles, resulting in bullethell-like gameplay.
      */
 
     /* DISCLAIMERS:
@@ -33,26 +43,27 @@ function asteroids() {
         FPS = 60,
         SCREEN_MARGIN = 655;
 
-    // Game mechanic constants (to avoid "magic numbers")
-    const shipSpeed : number = 5, // Player's movement as pixels per frame (ppf)
-        bulletColor : string = "#fff",
-        bulletSpeed : number = 8, // Bullet movement ppf
-        bulletLifeFrames : number = 50, // Frames that a bullet lasts for before disintegrating
-        asteroidDivergence : number = 0.8, // Factor that an asteroid's children diverge from the original path by
-        defaultAsteroidColor : string = "#000",
-        minAsteroidRadius : number = 8,
-        maxAsteroidRadius : number = 45,
-        maxAsteroidSpeed : number = 4, // Asteroid's maximum speed in ppf (scalar: in either direction)
-        biggestAsteroidConsidered : number = 100, // Biggest asteroid "considered" to be generated (Maybe be rejected for randomness, see spawnAsteroid func
-        maxAsteroids : number = 4,
-        bulletSize : number = 3, // Radius of bullets shot
-        asteroidSpawnInterval : number = 1000, // Every n milliseconds that an asteroid attempts to spawn.
-        shipHitboxRadius : number = 10, // Radius of the ship's circular hitbox from its centre
-        starHitboxRadius : number = 15,
-        starEdgePadding = 10,
-        starScoreModifier = (score:number) => score * 1.1,
-        starSpawnRate = 1500,
-        starSpawnChance = 3;
+    // Game mechanic default constants (to avoid "magic numbers")
+    const DEFAULTS = {
+        shipSpeed : 5, // Player's movement as pixels per frame (ppf)
+        bulletColor : "#fff",
+        bulletSpeed : 8, // Bullet movement ppf
+        bulletLifeFrames : 50, // Frames that a bullet lasts for before disintegrating
+        asteroidDivergence : 0.8, // Factor that an asteroid's children diverge from the original path by
+        defaultAsteroidColor : "#000",
+        minAsteroidRadius : 8,
+        maxAsteroidRadius : 45,
+        maxAsteroidSpeed : 4, // Asteroid's maximum speed in ppf (scalar: in either direction)
+        biggestAsteroidConsidered : 100, // Biggest asteroid "considered" to be generated (Maybe be rejected for randomness, see spawnAsteroid func
+        maxAsteroids : 4,
+        bulletSize : 3, // Radius of bullets shot
+        asteroidSpawnInterval : 1000, // Every n milliseconds that an asteroid attempts to spawn.
+        shipHitboxRadius : 10, // Radius of the ship's circular hitbox from its centre
+        starHitboxRadius : 15, // Radius of a star's circular hitbox from its centre
+        starEdgePadding : 10, // Padding from the right side of the screen where stars despawn
+        starSpawnRate : 1500, // Every _ milliseconds, attempt to spawn a power star
+        starSpawnChance : 3 // A 1 in _ chance to spawn a star every starSpawnRate milliseconds
+    }
 
     // Basic helpers
     const rad = (deg: number) : number => deg * (Math.PI / 180); // Classic trig
@@ -105,7 +116,7 @@ function asteroids() {
         .attr("style", "font: bold 24px sans-serif;");
     scoreElement.elem.innerHTML = "Score:";
 
-    const powerMeter = new Elem(svg, "text") // Draw game over screen
+    const powerMeter = new Elem(svg, "text") // Draw power meter
         .attr("x", "10px")
         .attr("y", "55px")
         .attr("fill", "#fff")
@@ -168,12 +179,13 @@ function asteroids() {
     // Side-effect: moves an element on the screen (IO)
     function controlElement(elem: Elem, keyObs: Observable<string>, keyFilter: (_: string) => boolean, f: TransFunc): void {
         keyObs
-            .filter(keyFilter)
+            .filter(keyFilter) // Only keys that match the filter
             .subscribe(_ => {
-                const cancel = Observable.fromEvent<KeyboardEvent>(document, "keyup")
+                const cancel = Observable.fromEvent<KeyboardEvent>(document, "keyup")// Observable to cancel a key being held down
                     .map(event => event.key)
                     .filter(keyFilter);
-                const velocity = Observable.interval(1000 / FPS).takeUntil(cancel);
+                // Frame by frame movement Observable
+                const velocity = Observable.interval(1000 / FPS).takeUntil(cancel); //
                 velocity.subscribe(_ => transformElement(g, f));
             });
     }
@@ -181,18 +193,18 @@ function asteroids() {
     // Pure transform functions describing ship and bullet movement
     const
         forward = (t: Transform) => ({ // Thrust movement forward
-            x: ((t.x + (Math.sin(rad(t.rot)) * shipSpeed))),
-            y: (t.y - (Math.cos(rad(t.rot)) * shipSpeed)),
+            x: ((t.x + (Math.sin(rad(t.rot)) * DEFAULTS.shipSpeed))),
+            y: (t.y - (Math.cos(rad(t.rot)) * DEFAULTS.shipSpeed)),
             rot: t.rot
         }),
         backward = (t: Transform) => ({ // Thrust movement forward
-            x: ((t.x - (Math.sin(rad(t.rot)) * shipSpeed))),
-            y: (t.y + (Math.cos(rad(t.rot)) * shipSpeed)),
+            x: ((t.x - (Math.sin(rad(t.rot)) * DEFAULTS.shipSpeed))),
+            y: (t.y + (Math.cos(rad(t.rot)) * DEFAULTS.shipSpeed)),
             rot: t.rot
         }),
         // Rotate left or right
-        right = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot + shipSpeed)}),
-        left = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot - shipSpeed)});
+        right = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot + DEFAULTS.shipSpeed)}),
+        left = (t: Transform) => ({x: t.x, y: t.y, rot: (t.rot - DEFAULTS.shipSpeed)});
 
     // Definition of controls
     controlElement(g, controls, k => k == "w", forward);
@@ -202,14 +214,15 @@ function asteroids() {
 
     // == BULLETS/SHOOTING ==
 
-    // Produce a bullet coming out of a given element (for reusability) given a timeout and velocity function
-    // Impure: Draws information outside of the function body, being positions of existing elements
+    // Produce a bullet coming out of a given element (for re-usability) given a timeout and velocity function
+    // (Impure) : Draws information outside of the function body, being positions of existing elements
     // Side-effect: Draws on screen (IO)
+    // Side-effect: Writes to the array of bullets. This array is needed for each asteroid to check for collisions with a bullet every frame.
     function shootFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc, startingPos?: Transform) : void {
         if (startingPos === undefined) startingPos = position(elem);
         const bullet = new Elem(svg, 'circle') // Draw bullet
-            .attr("r", bulletSize.toString())
-            .attr("fill", bulletColor)
+            .attr("r", DEFAULTS.bulletSize.toString())
+            .attr("fill", DEFAULTS.bulletColor)
             .attr("transform", "translate(0 0) rotate(0)");
         // Add it to the list of "alive" bullets
         let liveBullet = true;
@@ -229,6 +242,13 @@ function asteroids() {
             .subscribe(_ => transformElement(bullet, velocityFunc)) // Move
     }
 
+    // Spawn many bullets from one element at once. The starting positions of all of these bullets is defined in
+    // an array of transformation functions passed in. The amount of bullets it shoots is one for each TransFunc provided in the array.
+    // Each TransFunc modifies the origin of the element in some way by passing it as input. All of these functions are pure.
+    // This is very powerful for my bullethell style game as it allows for a diverse range of patterns of bullets to be shot out from any given element.
+    // The generatePointArc is an example of a function that can generate a complex set of starting functions to create a nice pattern.
+    // (Impure) Side-effect: modifies game IO by drawing to the screen.
+    // Modifies global bullet list
     function shootManyFrom(elem: Elem, bulletTimeout: number, velocityFunc: TransFunc, startPosFunctions: TransFunc[]){
         const elemOrigin = position(elem);
         startPosFunctions
@@ -238,11 +258,14 @@ function asteroids() {
 
     // Pure transform function describing bullet velocity
     const bulletMovement = (t: Transform) : Transform => ({
-        x: ((t.x + (Math.sin(rad(t.rot)) * bulletSpeed))),
-        y: (t.y - (Math.cos(rad(t.rot)) * bulletSpeed)),
+        x: ((t.x + (Math.sin(rad(t.rot)) * DEFAULTS.bulletSpeed))),
+        y: (t.y - (Math.cos(rad(t.rot)) * DEFAULTS.bulletSpeed)),
         rot: t.rot
     });
 
+    // Pure functions which generates an array of transform functions which modify the origin of an element
+    // to form an arc of a given amount of points spaced out over a given number of degrees.
+    // E.g. 3 points over a 90 degree arc would position at -45 deg, 0 deg and 45 deg.
     function generatePointArc(arcDegrees:number, numPoints:number) : TransFunc[]{
         const deviationDegrees = (part:number) => ((part-1)*arcDegrees)/(numPoints-1) - (arcDegrees/2);
         return Array(numPoints)
@@ -253,6 +276,8 @@ function asteroids() {
 
     }
 
+    // All the various power level shooting patterns manually defined for each level.
+    // These are arbitrary game constants, chosen to what I think would make the game balanced-(ish).
     const powerLevelStages = [
         [],
         generatePointArc(20, 2),
@@ -260,24 +285,24 @@ function asteroids() {
         generatePointArc(90, 4),
         generatePointArc(90, 5),
         generatePointArc(75, 6),
-        generatePointArc(75, 8),
-        generatePointArc(110, 10),
+        generatePointArc(75, 8), // Highest power level: at this crazy level your game might lag
     ];
 
+    // Chooses what shoot function to use based on a given power level. Basically just chooses from powerLevelStages.
     function shootAtPowerLevel(elem:Elem, bulletTimeout:number, bulletMovement:TransFunc, powerLevel : number) {
-        if (powerLevel == 0) {
-            shootFrom(g, bulletTimeout, bulletMovement)
+        if (powerLevel == 0) { // If the power level is just normal shooting (i.e. level 1, or 0 in the code)
+            shootFrom(g, bulletTimeout, bulletMovement) // Just one bullet
         } else {
+            // A crazy amount of bullets based on powerLevelStages array for any other power level
             shootManyFrom(g, bulletTimeout, bulletMovement, powerLevelStages[powerLevel])
         }
     }
 
     // OBSERVABLE: for player shooting controls
-
     controls
         .filter(k => k == " ")
         .subscribe(_ => {
-            shootAtPowerLevel(g, bulletLifeFrames * 1000/FPS, bulletMovement, powerLevel)
+            shootAtPowerLevel(g, DEFAULTS.bulletLifeFrames * 1000/FPS, bulletMovement, powerLevel)
         });
 
     // Delete a bullet safely and stop asteroids from checking for it
@@ -306,6 +331,9 @@ function asteroids() {
 
     // == POWER UPS / STARS ==
 
+    // Transform the (global) player power level state given a number => number function
+    // (Impure) Side-effects: modifies a global variable for the power level. This needs to be external
+    // as it may be modified at any time by other methods. It also modifies the power meter on screen.
     function updatePowerLevel(f : (_:number) => number) : void {
         const transformation = f(powerLevel);
         powerLevel = transformation >= powerLevelStages.length?
@@ -313,8 +341,12 @@ function asteroids() {
         powerMeter.elem.innerHTML = "Power: " + (powerLevel + 1)
     }
 
+    // Make the power meter element display the starting power level when the game starts
     updatePowerLevel(_ => powerLevel);
 
+    // Spawns a power star at a given position with a given velocity function.
+    // (Impure) Side-effects: Draws a star onto the screen and moves it every frame.
+    // Checks for collisions with the player and modifies the global power level state.
     function spawnStar(initPos:Transform, velocityFunc:TransFunc) : void {
         const powerStar = new Elem(svg, 'polygon')
             .attr("points", "10 -5, 15 5, 25 10, 15 15, 10 25, 5 15, -5 10, 5 5")
@@ -324,27 +356,31 @@ function asteroids() {
         let alive = true;
         const killStar = () => {alive = false; powerStar.attr("visibility", "hidden")};
         Observable.interval(1000/FPS)
+            .filter(() => alive)
             .subscribe(_=>{
-                if (alive) {
                     transformElement(powerStar, velocityFunc);
-                    if (position(powerStar).x >= SCREEN_MARGIN - starEdgePadding) killStar();
-                    if (collidedWithShip(powerStar, starHitboxRadius) && !gameOver) {
+                    if (position(powerStar).x >= SCREEN_MARGIN - DEFAULTS.starEdgePadding) killStar();
+                    if (collidedWithShip(powerStar, DEFAULTS.starHitboxRadius) && !gameOver) {
                         killStar();
                         updatePowerLevel(n => n + 1);
                         updateScore(starScoreModifier);
                     }
-                }
             })
     }
 
+    // A transform function describing the velocity of every star created
     const starVelocity = (t:Transform) => ({x: t.x + 6, y: t.y, rot: t.rot + 5});
 
-    Observable.interval(starSpawnRate)
-        .filter(_=>(Math.floor(Math.random()*100)%starSpawnChance==0))
-        .map(_=>(Math.random()*10000)%SCREEN_MARGIN)
+    // The pure function applied to the score whenever a star is picked up.
+    const starScoreModifier = (score: number) => score * 1.1
+
+    // Star spawner observable
+    Observable.interval(DEFAULTS.starSpawnRate)
+        .filter(_=>(Math.floor(Math.random()*100) % DEFAULTS.starSpawnChance == 0)) // Add random factor to spawning
+        .map(_=>(Math.random()*10000)%SCREEN_MARGIN) // Pick a random y coord to spawn at
         .subscribe(newY=>{
            spawnStar(
-               {x: 0, y: newY, rot: 0},
+               {x: 0, y: newY, rot: 0}, // Spawn at that random y pos, on the left side of the screen
                starVelocity
            )
         });
@@ -360,9 +396,10 @@ function asteroids() {
     const asteroidScoreFunc = (radius:number) => (oldScore:number) => (oldScore + Math.ceil(radius) * 100);
 
     // Spawn a new asteroid of size radius, starting at initPos moving using a TransFunc. Can set a color optionally
-    // Impure: Reads from global bullet list and draws to the screen
+    // (Impure) side-effects: Reads from global bullet list and draws to the screen.
+    // This bullet array is needed for each asteroid to check for collisions with a bullet every frame.
     function spawnAsteroid(radius:number, initPos:Transform, velocityFunc:TransFunc, color?:string) : void {
-        color = color === undefined? defaultAsteroidColor : color; // Set to default color if not defined
+        color = color === undefined? DEFAULTS.defaultAsteroidColor : color; // Set to default color if not defined
         const asteroid = new Elem(svg, 'circle') // Draw asteroid
             .attr("r", radius.toString())
             .attr("fill", color)
@@ -371,9 +408,9 @@ function asteroids() {
         transformElement(asteroid, _ => initPos); // Move asteroid to the starting position
         let deleted = false;
         // Observer that controls the movement and collision behaviour of each asteroid every frame
-        const controller = Observable.interval(1000/FPS);
-        controller.subscribe(_ => {
-            if (!deleted) { // ONLY perform any behaviour if the asteroid has not been destroyed
+        Observable.interval(1000/FPS)
+            .filter(() => !deleted) // ONLY perform any behaviour if the asteroid has not been destroyed
+            .subscribe(_ => {
                 // Move the element according to the velocity function
                 transformElement(asteroid, velocityFunc);
                 // Kill the player if it collides with it
@@ -387,19 +424,18 @@ function asteroids() {
                     // Update the score by generating a score function and using it to modify the score based on its radius.
                     updateScore(asteroidScoreFunc(radius));
                     // Spawn two new, smaller asteroids
-                    color = color === undefined? defaultAsteroidColor : color; // Color is the same as the parent if it was defined
-                    if (radius >= minAsteroidRadius * 2) { // Only multiply if it is big enough to have children larger than the minimum asteroid size
+                    color = color === undefined? DEFAULTS.defaultAsteroidColor : color; // Color is the same as the parent if it was defined
+                    if (radius >= DEFAULTS.minAsteroidRadius * 2) { // Only multiply if it is big enough to have children larger than the minimum asteroid size
                         // Spawn both asteroids of half radius.
                         // Provide a velocity function the same as the parent but with a slight tweak; each axis diverges slightly
                         spawnAsteroid(radius/2, position(asteroid),
-                            t=>velocityFunc({x: t.x-asteroidDivergence, y: t.y+asteroidDivergence, rot: 0}), color);
+                            t=>velocityFunc({x: t.x-DEFAULTS.asteroidDivergence, y: t.y+DEFAULTS.asteroidDivergence, rot: 0}), color);
                         spawnAsteroid(radius/2, position(asteroid),
-                            t=>velocityFunc({x: t.x+asteroidDivergence, y: t.y-asteroidDivergence, rot: 0}), color)
+                            t=>velocityFunc({x: t.x+DEFAULTS.asteroidDivergence, y: t.y-DEFAULTS.asteroidDivergence, rot: 0}), color)
                     }
                     // Remove the asteroid element (reduces lag in theory)
                     asteroid.elem.remove();
                 }
-            }
         });
     }
 
@@ -416,29 +452,29 @@ function asteroids() {
 
     // Test if a given element with a given radius collides with the player.
     // Derived from curried function above.
-    const collidedWithShip = collision(g, shipHitboxRadius);
+    const collidedWithShip = collision(g, DEFAULTS.shipHitboxRadius);
 
     // Test if a given element collided with an alive bullet. Returns the bullet that shot the element if it was shot;
     // undefined otherwise.
     const gotShot = (object:Elem, radius:number): Elem | undefined => bullets
-        .filter(bullet => collision(object, radius)(bullet, bulletSize))[0];
+        .filter(bullet => collision(object, radius)(bullet, DEFAULTS.bulletSize))[0];
 
     // OBSERVABLE: Asteroid spawner that attempts to spawn an asteroid at a given interval specified above.
-    Observable.interval(asteroidSpawnInterval)
+    Observable.interval(DEFAULTS.asteroidSpawnInterval)
         .map(_=>({ // Generate random properties of an asteroid
-            size: Math.random()*biggestAsteroidConsidered,
+            size: Math.random()*DEFAULTS.biggestAsteroidConsidered,
             yPos: (Math.random()*10000) % SCREEN_MARGIN, // Only spawn on screen's edge
-            xVelocity: maxAsteroidSpeed - Math.random() * maxAsteroidSpeed * 2, // x Velocity between -maxSpeed and +maxSpeed including 0
-            yVelocity: maxAsteroidSpeed - Math.random() * maxAsteroidSpeed * 2  // Same as above for y
+            xVelocity: DEFAULTS.maxAsteroidSpeed - Math.random() * DEFAULTS.maxAsteroidSpeed * 2, // x Velocity between -maxSpeed and +maxSpeed including 0
+            yVelocity: DEFAULTS.maxAsteroidSpeed - Math.random() * DEFAULTS.maxAsteroidSpeed * 2  // Same as above for y
         }))
         /* Remove any asteroid that WOULD have spawned with a size larger that what is described.
          * This is what's meant by maximum considered size. This aims to add a touch of randomness
          * to when asteroids spawn using a one-liner higher-order function
          * */
-        .filter(rand => rand.size > minAsteroidRadius && rand.size < maxAsteroidRadius)
+        .filter(rand => rand.size > DEFAULTS.minAsteroidRadius && rand.size < DEFAULTS.maxAsteroidRadius)
         // For every successful asteroid spawn:
         .subscribe(rand => {
-            if (asteroidCount < maxAsteroids) { // If we have space for another asteroid within the cap
+            if (asteroidCount < DEFAULTS.maxAsteroids) { // If we have space for another asteroid within the cap
                 asteroidCount++;
                 spawnAsteroid( // Spawn an asteroid with the following randomised properties
                     rand.size, // A random radius
@@ -446,7 +482,7 @@ function asteroids() {
                     t => ({x: rand.xVelocity + t.x, y: rand.yVelocity + t.y, rot: 0}), // Velocity function
                     // Color of the asteroid which depends on how fast a given asteroid is. Slower ones have lower hues, faster have higher hues.
                     // Makes my assignment stand out a little bit. (A bit of extra functionality maybe?)
-                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/(maxAsteroidSpeed**2))}, 100%, 50%)`
+                    `hsl(${Math.abs(rand.xVelocity) * Math.abs(rand.yVelocity) * (360/(DEFAULTS.maxAsteroidSpeed**2))}, 100%, 50%)`
                 );
             }
         });

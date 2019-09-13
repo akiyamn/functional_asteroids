@@ -170,16 +170,15 @@ function asteroids() {
         let alive = true;
         const killStar = () => { alive = false; powerStar.attr("visibility", "hidden"); };
         Observable.interval(1000 / FPS)
+            .filter(() => alive)
             .subscribe(_ => {
-            if (alive) {
-                transformElement(powerStar, velocityFunc);
-                if (position(powerStar).x >= SCREEN_MARGIN - starEdgePadding)
-                    killStar();
-                if (collidedWithShip(powerStar, starHitboxRadius) && !gameOver) {
-                    killStar();
-                    updatePowerLevel(n => n + 1);
-                    updateScore(starScoreModifier);
-                }
+            transformElement(powerStar, velocityFunc);
+            if (position(powerStar).x >= SCREEN_MARGIN - starEdgePadding)
+                killStar();
+            if (collidedWithShip(powerStar, starHitboxRadius) && !gameOver) {
+                killStar();
+                updatePowerLevel(n => n + 1);
+                updateScore(starScoreModifier);
             }
         });
     }
@@ -200,25 +199,24 @@ function asteroids() {
             .attr("transform", "translate(0 0) rotate(0)");
         transformElement(asteroid, _ => initPos);
         let deleted = false;
-        const controller = Observable.interval(1000 / FPS);
-        controller.subscribe(_ => {
-            if (!deleted) {
-                transformElement(asteroid, velocityFunc);
-                if (collidedWithShip(asteroid, radius))
-                    killPlayer(ship);
-                const bullet = gotShot(asteroid, radius);
-                if (bullet) {
-                    deleted = true;
-                    deleteBullet(bullet);
-                    asteroidCount--;
-                    updateScore(asteroidScoreFunc(radius));
-                    color = color === undefined ? defaultAsteroidColor : color;
-                    if (radius >= minAsteroidRadius * 2) {
-                        spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x - asteroidDivergence, y: t.y + asteroidDivergence, rot: 0 }), color);
-                        spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x + asteroidDivergence, y: t.y - asteroidDivergence, rot: 0 }), color);
-                    }
-                    asteroid.elem.remove();
+        Observable.interval(1000 / FPS)
+            .filter(() => !deleted)
+            .subscribe(_ => {
+            transformElement(asteroid, velocityFunc);
+            if (collidedWithShip(asteroid, radius))
+                killPlayer(ship);
+            const bullet = gotShot(asteroid, radius);
+            if (bullet) {
+                deleted = true;
+                deleteBullet(bullet);
+                asteroidCount--;
+                updateScore(asteroidScoreFunc(radius));
+                color = color === undefined ? defaultAsteroidColor : color;
+                if (radius >= minAsteroidRadius * 2) {
+                    spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x - asteroidDivergence, y: t.y + asteroidDivergence, rot: 0 }), color);
+                    spawnAsteroid(radius / 2, position(asteroid), t => velocityFunc({ x: t.x + asteroidDivergence, y: t.y - asteroidDivergence, rot: 0 }), color);
                 }
+                asteroid.elem.remove();
             }
         });
     }
