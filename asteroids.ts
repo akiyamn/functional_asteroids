@@ -24,7 +24,7 @@ function asteroids() {
 
     In Touhou, the player can collect "power tokens" which allow for the player to shoot many bullets at once to destroy enemies,
      resulting in crazy patterns of bullets everyone on the screen. I have added a similar mechanic to my game in the
-     form of "power stars".
+     form of "power stars". You can pick one up by colliding with it.
 
      When you collect a power star, you will gain a power level which moves you to another tier of shooting.
      At power level 1 (0 in the code), you shoot just one bullet like in normal asteroids. However, later power levels
